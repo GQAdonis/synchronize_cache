@@ -1,4 +1,4 @@
-/// Константы для синхронизации.
+// Константы для синхронизации.
 
 /// Типы операций в outbox.
 abstract final class OpType {
@@ -51,5 +51,11 @@ abstract final class TableColumns {
 abstract final class TableNames {
   static const syncOutbox = 'sync_outbox';
   static const syncCursors = 'sync_cursors';
+}
+
+/// Специальные значения для курсоров.
+abstract final class CursorKinds {
+  /// Курсор для хранения времени последнего full resync.
+  static const fullResync = '__full_resync__';
 }
 

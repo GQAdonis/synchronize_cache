@@ -1,4 +1,4 @@
-/// Кастомные исключения для синхронизации.
+// Кастомные исключения для синхронизации.
 
 /// Базовое исключение синхронизации.
 sealed class SyncException implements Exception {
@@ -14,13 +14,8 @@ sealed class SyncException implements Exception {
   final StackTrace? stackTrace;
 
   @override
-  String toString() {
-    final buffer = StringBuffer('$runtimeType: $message');
-    if (cause != null) {
-      buffer.write('\nCaused by: $cause');
-    }
-    return buffer.toString();
-  }
+  String toString() =>
+      cause == null ? '$runtimeType: $message' : '$runtimeType: $message\nCaused by: $cause';
 }
 
 /// Ошибка сети (недоступность сервера, таймаут).
@@ -28,13 +23,12 @@ class NetworkException extends SyncException {
   const NetworkException(super.message, [super.cause, super.stackTrace]);
 
   /// Создать из сетевой ошибки.
-  factory NetworkException.fromError(Object error, [StackTrace? stackTrace]) {
-    return NetworkException(
-      'Network request failed: $error',
-      error,
-      stackTrace,
-    );
-  }
+  factory NetworkException.fromError(Object error, [StackTrace? stackTrace]) =>
+      NetworkException(
+        'Network request failed: $error',
+        error,
+        stackTrace,
+      );
 }
 
 /// Ошибка транспорта (неожиданный ответ сервера).
@@ -54,22 +48,16 @@ class TransportException extends SyncException {
   final String? responseBody;
 
   /// Создать для неуспешного HTTP ответа.
-  factory TransportException.httpError(int statusCode, [String? body]) {
-    return TransportException(
-      'HTTP error $statusCode',
-      statusCode: statusCode,
-      responseBody: body,
-    );
-  }
+  factory TransportException.httpError(int statusCode, [String? body]) => TransportException(
+        'HTTP error $statusCode',
+        statusCode: statusCode,
+        responseBody: body,
+      );
 
   @override
-  String toString() {
-    final buffer = StringBuffer('TransportException: $message');
-    if (statusCode != null) {
-      buffer.write(' (status: $statusCode)');
-    }
-    return buffer.toString();
-  }
+  String toString() => statusCode == null
+      ? 'TransportException: $message'
+      : 'TransportException: $message (status: $statusCode)';
 }
 
 /// Ошибка базы данных.
@@ -77,13 +65,12 @@ class DatabaseException extends SyncException {
   const DatabaseException(super.message, [super.cause, super.stackTrace]);
 
   /// Создать из ошибки БД.
-  factory DatabaseException.fromError(Object error, [StackTrace? stackTrace]) {
-    return DatabaseException(
-      'Database operation failed: $error',
-      error,
-      stackTrace,
-    );
-  }
+  factory DatabaseException.fromError(Object error, [StackTrace? stackTrace]) =>
+      DatabaseException(
+        'Database operation failed: $error',
+        error,
+        stackTrace,
+      );
 }
 
 /// Неразрешённый конфликт данных.
@@ -131,16 +118,10 @@ class SyncOperationException extends SyncException {
   final String? opId;
 
   @override
-  String toString() {
-    final buffer = StringBuffer('SyncOperationException: $message');
-    if (phase != null) {
-      buffer.write(' (phase: $phase)');
-    }
-    if (opId != null) {
-      buffer.write(' (opId: $opId)');
-    }
-    return buffer.toString();
-  }
+  String toString() =>
+      'SyncOperationException: $message'
+      '${phase == null ? '' : ' (phase: $phase)'}'
+      '${opId == null ? '' : ' (opId: $opId)'}';
 }
 
 /// Превышено максимальное количество попыток.
@@ -169,11 +150,9 @@ class ParseException extends SyncException {
   const ParseException(super.message, [super.cause, super.stackTrace]);
 
   /// Создать из ошибки парсинга.
-  factory ParseException.fromError(Object error, [StackTrace? stackTrace]) {
-    return ParseException(
-      'Failed to parse data: $error',
-      error,
-      stackTrace,
-    );
-  }
+  factory ParseException.fromError(Object error, [StackTrace? stackTrace]) => ParseException(
+        'Failed to parse data: $error',
+        error,
+        stackTrace,
+      );
 }

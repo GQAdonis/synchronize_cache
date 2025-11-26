@@ -28,7 +28,7 @@ class SyncableTable<T> {
   /// Конвертация entity в Insertable для записи в БД.
   /// Если используете @UseRowClass(T, generateInsertable: true),
   /// передайте: toInsertable: (e) => e.toInsertable()
-  /// Если T implements Insertable<T>, можно не указывать.
+  /// Если T реализует `Insertable<T>`, можно не указывать.
   final Insertable<T> Function(T entity)? toInsertable;
 
   /// Получить ID сущности. По умолчанию ищет поле 'id'.
