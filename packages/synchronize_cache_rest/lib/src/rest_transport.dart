@@ -15,6 +15,10 @@ class RestTransport implements TransportAdapter {
     this.backoffMin = const Duration(seconds: 1),
     this.backoffMax = const Duration(minutes: 2),
     this.maxRetries = 5,
+    this.pushConcurrency = 1,
+    this.enableBatch = false,
+    this.batchSize = 100,
+    this.batchPath = 'batch',
   }) : client = client ?? http.Client();
 
   /// Базовый URL API.
@@ -34,6 +38,21 @@ class RestTransport implements TransportAdapter {
 
   /// Максимальное количество попыток.
   final int maxRetries;
+
+  /// Количество одновременных запросов при push.
+  ///
+  /// Если 1 - запросы отправляются последовательно (по умолчанию).
+  /// Если > 1 - запросы отправляются пачками параллельно.
+  final int pushConcurrency;
+
+  /// Включить использование Batch API.
+  final bool enableBatch;
+
+  /// Максимальное количество операций в одном batch запросе.
+  final int batchSize;
+
+  /// Путь к batch endpoint (относительно base).
+  final String batchPath;
 
   Uri _url(String path, [Map<String, String>? q]) =>
       Uri.parse('${base.toString().replaceAll(RegExp(r"/+$"), '')}/$path')
@@ -89,14 +108,171 @@ class RestTransport implements TransportAdapter {
     }
 
     final auth = await token();
+
+    if (enableBatch) {
+      return _pushBatch(ops, auth);
+    }
+
     final results = <OpPushResult>[];
 
-    for (final op in ops) {
-      final result = await _pushSingleOp(op, auth);
-      results.add(OpPushResult(opId: op.opId, result: result));
+    if (pushConcurrency > 1) {
+      // Параллельная отправка батчами
+      for (var i = 0; i < ops.length; i += pushConcurrency) {
+        final end = (i + pushConcurrency < ops.length)
+            ? i + pushConcurrency
+            : ops.length;
+        final chunk = ops.sublist(i, end);
+
+        final chunkResults = await Future.wait(
+          chunk.map((op) async {
+            final result = await _pushSingleOp(op, auth);
+            return OpPushResult(opId: op.opId, result: result);
+          }),
+        );
+        results.addAll(chunkResults);
+      }
+    } else {
+      // Последовательная отправка
+      for (final op in ops) {
+        final result = await _pushSingleOp(op, auth);
+        results.add(OpPushResult(opId: op.opId, result: result));
+      }
     }
 
     return BatchPushResult(results: results);
+  }
+
+  Future<BatchPushResult> _pushBatch(List<Op> ops, String auth) async {
+    final results = <OpPushResult>[];
+
+    // Разбиваем на чанки по batchSize
+    final chunks = <List<Op>>[];
+    for (var i = 0; i < ops.length; i += batchSize) {
+      final end = (i + batchSize < ops.length) ? i + batchSize : ops.length;
+      chunks.add(ops.sublist(i, end));
+    }
+
+    if (pushConcurrency > 1) {
+      // Обрабатываем чанки параллельно
+      for (var i = 0; i < chunks.length; i += pushConcurrency) {
+        final end = (i + pushConcurrency < chunks.length)
+            ? i + pushConcurrency
+            : chunks.length;
+        final batchGroup = chunks.sublist(i, end);
+
+        final groupResults = await Future.wait(
+          batchGroup.map((chunk) => _pushBatchChunk(chunk, auth)),
+        );
+
+        for (final batchRes in groupResults) {
+          results.addAll(batchRes.results);
+        }
+      }
+    } else {
+      // Обрабатываем чанки последовательно
+      for (final chunk in chunks) {
+        final batchRes = await _pushBatchChunk(chunk, auth);
+        results.addAll(batchRes.results);
+      }
+    }
+
+    return BatchPushResult(results: results);
+  }
+
+  Future<BatchPushResult> _pushBatchChunk(List<Op> chunk, String auth) async {
+    try {
+      final payload = {
+        'ops': chunk.map((op) {
+          final map = <String, Object?>{
+            'opId': op.opId,
+            'kind': op.kind,
+            'id': op.id,
+            'type': op is UpsertOp ? 'upsert' : 'delete',
+          };
+
+          if (op is UpsertOp) {
+            map['payload'] = op.payloadJson;
+            if (op.baseUpdatedAt != null) {
+              map['baseUpdatedAt'] =
+                  op.baseUpdatedAt!.toUtc().toIso8601String();
+            }
+          } else if (op is DeleteOp) {
+            if (op.baseUpdatedAt != null) {
+              map['baseUpdatedAt'] =
+                  op.baseUpdatedAt!.toUtc().toIso8601String();
+            }
+          }
+          return map;
+        }).toList(),
+      };
+
+      final res = await _withRetry(() async {
+        final req = http.Request('POST', _url(batchPath))
+          ..headers.addAll(_headers(auth))
+          ..body = jsonEncode(payload);
+        return http.Response.fromStream(await client.send(req));
+      });
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body) as Map<String, Object?>;
+        final resultsJson =
+            (body['results'] as List?)?.cast<Map<String, Object?>>() ?? [];
+
+        // Создаем карту результатов для быстрого поиска
+        final resultsMap = <String, OpPushResult>{};
+        for (final item in resultsJson) {
+          final opRes = _parseBatchItem(item);
+          resultsMap[opRes.opId] = opRes;
+        }
+
+        // Формируем итоговый список, сохраняя порядок ops в чанке
+        final results = chunk.map((op) {
+          if (resultsMap.containsKey(op.opId)) {
+            return resultsMap[op.opId]!;
+          }
+          // Если сервер не вернул результат для операции
+          return OpPushResult(
+            opId: op.opId,
+            result: PushError(
+              http.ClientException('No result for op ${op.opId} in batch response'),
+            ),
+          );
+        }).toList();
+
+        return BatchPushResult(results: results);
+      }
+
+      throw TransportException.httpError(res.statusCode, res.body);
+    } on SyncException {
+      rethrow;
+    } catch (e, st) {
+      throw NetworkException.fromError(e, st);
+    }
+  }
+
+  OpPushResult _parseBatchItem(Map<String, Object?> item) {
+    final opId = item['opId'] as String;
+    final statusCode = item['statusCode'] as int? ?? 200;
+
+    PushResult result;
+
+    if (statusCode >= 200 && statusCode < 300) {
+      result = PushSuccess(
+        serverData: item['data'] as Map<String, Object?>?,
+        serverVersion: item['version']?.toString(),
+      );
+    } else if (statusCode == 404) {
+      result = const PushNotFound();
+    } else if (statusCode == 409) {
+      final conflictBody = (item['error'] as Map<String, Object?>?) ?? item;
+      result = _parseConflictMap(conflictBody);
+    } else {
+      result = PushError(
+        http.ClientException('Batch op failed: $statusCode'),
+      );
+    }
+
+    return OpPushResult(opId: opId, result: result);
   }
 
   Future<PushResult> _pushSingleOp(Op op, String auth, {bool force = false}) async {
@@ -212,31 +388,43 @@ class RestTransport implements TransportAdapter {
   }
 
   PushConflict _parseConflict(http.Response res) {
+    if (res.body.isNotEmpty) {
+      try {
+        final body = jsonDecode(res.body) as Map<String, Object?>;
+        return _parseConflictMap(body, res.headers['etag']);
+      } catch (_) {}
+    }
+
+    return PushConflict(
+      serverData: {},
+      serverTimestamp: DateTime.now().toUtc(),
+    );
+  }
+
+  PushConflict _parseConflictMap(Map<String, Object?> body,
+      [String? headerEtag]) {
     Map<String, Object?> serverData = {};
     DateTime serverTimestamp = DateTime.now().toUtc();
     String? serverVersion;
 
-    if (res.body.isNotEmpty) {
-      try {
-        final body = jsonDecode(res.body) as Map<String, Object?>;
+    try {
+      // Поддержка разных форматов ответа от сервера
+      serverData = (body['current'] as Map<String, Object?>?) ??
+          (body['serverData'] as Map<String, Object?>?) ??
+          body;
 
-        // Поддержка разных форматов ответа от сервера
-        serverData = (body['current'] as Map<String, Object?>?) ??
-            (body['serverData'] as Map<String, Object?>?) ??
-            body;
-
-        final ts = body['serverTimestamp'] ??
-            serverData[SyncFields.updatedAt] ??
-            serverData[SyncFields.updatedAtSnake];
+      final ts = body['serverTimestamp'] ??
+          serverData[SyncFields.updatedAt] ??
+          serverData[SyncFields.updatedAtSnake];
         if (ts != null) {
           serverTimestamp =
               ts is DateTime ? ts : DateTime.parse(ts.toString()).toUtc();
         }
 
-        serverVersion =
-            body['version']?.toString() ?? res.headers['etag'];
+        serverVersion = body['version']?.toString() ??
+            serverData['version']?.toString() ??
+            headerEtag;
       } catch (_) {}
-    }
 
     return PushConflict(
       serverData: serverData,
