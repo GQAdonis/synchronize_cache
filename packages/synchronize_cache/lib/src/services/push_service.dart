@@ -30,14 +30,13 @@ class PushStats {
     int? conflicts,
     int? conflictsResolved,
     int? errors,
-  }) {
-    return PushStats(
-      pushed: pushed ?? this.pushed,
-      conflicts: conflicts ?? this.conflicts,
-      conflictsResolved: conflictsResolved ?? this.conflictsResolved,
-      errors: errors ?? this.errors,
-    );
-  }
+  }) =>
+      PushStats(
+        pushed: pushed ?? this.pushed,
+        conflicts: conflicts ?? this.conflicts,
+        conflictsResolved: conflictsResolved ?? this.conflictsResolved,
+        errors: errors ?? this.errors,
+      );
 }
 
 /// Сервис для отправки локальных изменений на сервер.
@@ -62,10 +61,7 @@ class PushService {
 
   /// Отправить все операции из outbox.
   Future<PushStats> pushAll() async {
-    var pushed = 0;
-    var conflicts = 0;
-    var conflictsResolved = 0;
-    var errors = 0;
+    final counters = _PushCounters();
 
     try {
       while (true) {
@@ -83,7 +79,7 @@ class PushService {
           switch (opResult.result) {
             case PushSuccess():
               successOpIds.add(opResult.opId);
-              pushed++;
+              counters.pushed++;
               _events.add(OperationPushedEvent(
                 opId: op.opId,
                 kind: op.kind,
@@ -91,15 +87,15 @@ class PushService {
                 operationType: op is UpsertOp ? OpType.upsert : OpType.delete,
               ));
 
-            case PushConflict conflict:
-              conflicts++;
+            case final PushConflict conflict:
+              counters.conflicts++;
               conflictOps[op] = conflict;
 
             case PushNotFound():
               successOpIds.add(opResult.opId);
 
-            case PushError error:
-              errors++;
+            case final PushError error:
+              counters.errors++;
               _events.add(OperationFailedEvent(
                 opId: op.opId,
                 kind: op.kind,
@@ -115,7 +111,7 @@ class PushService {
         for (final entry in conflictOps.entries) {
           final result = await _conflictService.resolve(entry.key, entry.value);
           if (result.resolved) {
-            conflictsResolved++;
+            counters.conflictsResolved++;
             successOpIds.add(entry.key.opId);
           } else if (_config.skipConflictingOps) {
             successOpIds.add(entry.key.opId);
@@ -143,12 +139,7 @@ class PushService {
       );
     }
 
-    return PushStats(
-      pushed: pushed,
-      conflicts: conflicts,
-      conflictsResolved: conflictsResolved,
-      errors: errors,
-    );
+    return counters.toStats();
   }
 
   Future<BatchPushResult> _pushBatch(List<Op> ops) async {
@@ -176,5 +167,19 @@ class PushService {
       }
     }
   }
+}
+
+class _PushCounters {
+  int pushed = 0;
+  int conflicts = 0;
+  int conflictsResolved = 0;
+  int errors = 0;
+
+  PushStats toStats() => PushStats(
+        pushed: pushed,
+        conflicts: conflicts,
+        conflictsResolved: conflictsResolved,
+        errors: errors,
+      );
 }
 

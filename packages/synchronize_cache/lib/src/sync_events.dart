@@ -7,6 +7,24 @@ sealed class SyncEvent {}
 /// Фаза синхронизации.
 enum SyncPhase { push, pull }
 
+/// Причина запуска full resync.
+enum FullResyncReason {
+  /// Запущено по расписанию (fullResyncInterval).
+  scheduled,
+
+  /// Запущено вручную.
+  manual,
+}
+
+/// Начало полной ресинхронизации.
+class FullResyncStarted implements SyncEvent {
+  FullResyncStarted(this.reason);
+  final FullResyncReason reason;
+
+  @override
+  String toString() => 'FullResyncStarted($reason)';
+}
+
 /// Начало синхронизации.
 class SyncStarted implements SyncEvent {
   SyncStarted(this.phase);
@@ -62,15 +80,14 @@ class SyncStats {
     int? conflicts,
     int? conflictsResolved,
     int? errors,
-  }) {
-    return SyncStats(
-      pushed: pushed ?? this.pushed,
-      pulled: pulled ?? this.pulled,
-      conflicts: conflicts ?? this.conflicts,
-      conflictsResolved: conflictsResolved ?? this.conflictsResolved,
-      errors: errors ?? this.errors,
-    );
-  }
+  }) =>
+      SyncStats(
+        pushed: pushed ?? this.pushed,
+        pulled: pulled ?? this.pulled,
+        conflicts: conflicts ?? this.conflicts,
+        conflictsResolved: conflictsResolved ?? this.conflictsResolved,
+        errors: errors ?? this.errors,
+      );
 
   @override
   String toString() => 'SyncStats(pushed: $pushed, pulled: $pulled, '
@@ -223,17 +240,4 @@ class OperationFailedEvent implements SyncEvent {
 
   @override
   String toString() => 'OperationFailed($kind/$entityId, retry: $willRetry)';
-}
-
-/// Deprecated: используйте [ConflictDetectedEvent] и [ConflictResolvedEvent].
-@Deprecated('Use ConflictDetectedEvent and ConflictResolvedEvent instead')
-class ConflictEvent implements SyncEvent {
-  ConflictEvent(this.kind, this.id, this.local, this.remote);
-  final String kind;
-  final String id;
-  final Map<String, Object?> local;
-  final Map<String, Object?> remote;
-
-  @override
-  String toString() => 'Conflict($kind/$id)';
 }

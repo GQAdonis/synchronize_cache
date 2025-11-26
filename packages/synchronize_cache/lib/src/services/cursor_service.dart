@@ -1,3 +1,4 @@
+import 'package:synchronize_cache/src/constants.dart';
 import 'package:synchronize_cache/src/cursor.dart';
 import 'package:synchronize_cache/src/exceptions.dart';
 import 'package:synchronize_cache/src/sync_database.dart';
@@ -32,6 +33,38 @@ class CursorService {
       ts: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       lastId: '',
     ));
+  }
+
+  /// Сбросить все курсоры (кроме служебных).
+  Future<void> resetAll(Set<String> kinds) async {
+    try {
+      await _db.resetAllCursors(kinds);
+    } catch (e, st) {
+      throw DatabaseException.fromError(e, st);
+    }
+  }
+
+  /// Получить время последнего full resync.
+  Future<DateTime?> getLastFullResync() async {
+    try {
+      final cursor = await _db.getCursor(CursorKinds.fullResync);
+      if (cursor == null) return null;
+      return cursor.ts;
+    } catch (e, st) {
+      throw DatabaseException.fromError(e, st);
+    }
+  }
+
+  /// Сохранить время последнего full resync.
+  Future<void> setLastFullResync(DateTime timestamp) async {
+    try {
+      await _db.setCursor(
+        CursorKinds.fullResync,
+        Cursor(ts: timestamp.toUtc(), lastId: ''),
+      );
+    } catch (e, st) {
+      throw DatabaseException.fromError(e, st);
+    }
   }
 }
 
