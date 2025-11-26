@@ -1,10 +1,19 @@
 targets:
   $default:
     builders:
+      # Отключаем default builder — используем modular setup
       drift_dev:
-        options:
+        enabled: false
+
+      # Включаем drift_dev:analyzer и drift_dev:modular
+      drift_dev:analyzer:
+        enabled: true
+        options: &options
           store_date_time_values_as_text: true
           generate_values_in_copy_with: true
           named_parameters: true
           named_parameters_always_required: false
 
+      drift_dev:modular:
+        enabled: true
+        options: *options
