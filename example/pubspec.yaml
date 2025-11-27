@@ -1,5 +1,5 @@
 name: example
-description: Example app using synchronize_cache.
+description: Example app using offline_first_sync_drift.
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -8,10 +8,10 @@ environment:
   sdk: ^3.8.0
 
 dependencies:
-  synchronize_cache:
-    path: ../packages/synchronize_cache
-  synchronize_cache_rest:
-    path: ../packages/synchronize_cache_rest
+  offline_first_sync_drift:
+    path: ../packages/offline_first_sync_drift
+  offline_first_sync_drift_rest:
+    path: ../packages/offline_first_sync_drift_rest
   drift: ^2.27.0
   sqlite3_flutter_libs: ^0.5.31
   path: ^1.9.1
@@ -22,4 +22,3 @@ dev_dependencies:
   build_runner: ^2.4.15
   json_serializable: ^6.9.4
   test: ^1.25.15
-

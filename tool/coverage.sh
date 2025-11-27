@@ -9,7 +9,7 @@ rm -rf coverage
 mkdir -p coverage
 
 echo "🧪 Running tests with coverage..."
-flutter test --coverage packages/synchronize_cache
+flutter test --coverage packages/offline_first_sync_drift
 
 if [ ! -f "$LCOV_INFO" ]; then
     echo "❌ No coverage file found"

@@ -5,13 +5,13 @@ import 'package:drift/native.dart';
 import 'package:example/models/daily_feeling.dart';
 import 'package:example/models/health_record.dart';
 import 'package:path/path.dart' as p;
-import 'package:synchronize_cache/synchronize_cache.dart';
+import 'package:offline_first_sync_drift/offline_first_sync_drift.dart';
 
 import 'package:example/database.drift.dart';
 
 /// База данных приложения с поддержкой синхронизации.
 @DriftDatabase(
-  include: {'package:synchronize_cache/src/sync_tables.drift'},
+  include: {'package:offline_first_sync_drift/src/sync_tables.drift'},
   tables: [HealthRecords, DailyFeelings],
 )
 class AppDatabase extends $AppDatabase with SyncDatabaseMixin {

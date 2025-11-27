@@ -5,8 +5,8 @@ import 'package:example/models/daily_feeling.dart';
 import 'package:example/models/daily_feeling.drift.dart';
 import 'package:example/models/health_record.dart';
 import 'package:example/models/health_record.drift.dart';
-import 'package:synchronize_cache/synchronize_cache.dart';
-import 'package:synchronize_cache_rest/synchronize_cache_rest.dart';
+import 'package:offline_first_sync_drift/offline_first_sync_drift.dart';
+import 'package:offline_first_sync_drift_rest/offline_first_sync_drift_rest.dart';
 
 Future<void> main() async {
   // Открываем базу данных

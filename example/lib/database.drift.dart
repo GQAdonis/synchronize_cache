@@ -1,8 +1,8 @@
 // dart format width=80
 // ignore_for_file: type=lint
 import 'package:drift/drift.dart' as i0;
-import 'package:synchronize_cache/src/tables/cursors.drift.dart' as i1;
-import 'package:synchronize_cache/src/tables/outbox.drift.dart' as i2;
+import 'package:offline_first_sync_drift/src/tables/cursors.drift.dart' as i1;
+import 'package:offline_first_sync_drift/src/tables/outbox.drift.dart' as i2;
 import 'package:example/models/health_record.drift.dart' as i3;
 import 'package:example/models/daily_feeling.drift.dart' as i4;
 

@@ -1,12 +1,12 @@
-name: synchronize_cache_workspace
+name: offline_first_sync_drift_workspace
 publish_to: none
 
 environment:
   sdk: ^3.7.0
 
 workspace:
-  - packages/synchronize_cache
-  - packages/synchronize_cache_rest
+  - packages/offline_first_sync_drift
+  - packages/offline_first_sync_drift_rest
   - example
 dev_dependencies:
   lints: ^6.0.0

@@ -1,6 +1,6 @@
 # Offline-first Cache Sync
 
-[![CI](https://github.com/cherrypick-agency/synchronize_cache/actions/workflows/ci.yml/badge.svg)](https://github.com/cherrypick-agency/synchronize_cache/actions/workflows/ci.yml)
+[![CI](https://github.com/cherrypick-agency/offline_first_sync_drift/actions/workflows/ci.yml/badge.svg)](https://github.com/cherrypick-agency/offline_first_sync_drift/actions/workflows/ci.yml)
 ![coverage](https://img.shields.io/badge/coverage-52.8%25-yellow)
 
 Dart/Flutter библиотека для offline-first работы с данными. Локальный кэш на Drift + синхронизация с сервером.
@@ -40,10 +40,10 @@ Dart/Flutter библиотека для offline-first работы с данн�
 
 ```yaml
 dependencies:
-  synchronize_cache:
-    path: packages/synchronize_cache
-  synchronize_cache_rest:
-    path: packages/synchronize_cache_rest
+  offline_first_sync_drift:
+    path: packages/offline_first_sync_drift
+  offline_first_sync_drift_rest:
+    path: packages/offline_first_sync_drift_rest
   drift: ^2.0.0
 
 dev_dependencies:
@@ -76,7 +76,7 @@ targets:
 
 ```dart
 import 'package:drift/drift.dart';
-import 'package:synchronize_cache/synchronize_cache.dart';
+import 'package:offline_first_sync_drift/offline_first_sync_drift.dart';
 
 part 'database.g.dart';
 
@@ -93,7 +93,7 @@ class DailyFeelings extends Table with SyncColumns {
 }
 
 @DriftDatabase(
-  include: {'package:synchronize_cache/src/sync_tables.drift'},
+  include: {'package:offline_first_sync_drift/src/sync_tables.drift'},
   tables: [DailyFeelings],
 )
 class AppDatabase extends _$AppDatabase with SyncDatabaseMixin {
@@ -109,7 +109,7 @@ class AppDatabase extends _$AppDatabase with SyncDatabaseMixin {
 SyncEngine связывает локальную БД и транспорт. В `tables` перечисляем каждую сущность: `kind` - имя на сервере, `table` - ссылка на Drift-таблицу, `fromJson`/`toJson` - преобразования между локальной моделью и API.
 
 ```dart
-import 'package:synchronize_cache_rest/synchronize_cache_rest.dart';
+import 'package:offline_first_sync_drift_rest/offline_first_sync_drift_rest.dart';
 
 final transport = RestTransport(
   base: Uri.parse('https://api.example.com'),
@@ -369,18 +369,18 @@ print('Ошибок: ${stats.errors}');
 - держите `updatedAt` и (опционально) `deletedAt`, выставляя системные поля на сервере;
 - при PUT проверяйте `_baseUpdatedAt`, возвращайте `409` с текущими данными и поддерживайте `X-Force-Update` + `X-Idempotency-Key`;
 - отдавайте списки в формате `{ "items": [...], "nextPageToken": "..." }`, строя курсор по `(updatedAt, id)`;
-- ориентируйтесь на e2e-пример в `packages/synchronize_cache_rest/test/e2e`, если нужна референсная реализация.
+- ориентируйтесь на e2e-пример в `packages/offline_first_sync_drift_rest/test/e2e`, если нужна референсная реализация.
 
 ---
 
 ## CI/CD
 
-GitHub Actions пайплайн `.github/workflows/ci.yml` гоняет `dart analyze` и тесты для всех пакетов воркспейса (`packages/synchronize_cache`, `packages/synchronize_cache_rest`, `example`) на каждом push и pull request в ветки `main`/`master`. Локально можно повторить те же проверки командами:
+GitHub Actions пайплайн `.github/workflows/ci.yml` гоняет `dart analyze` и тесты для всех пакетов воркспейса (`packages/offline_first_sync_drift`, `packages/offline_first_sync_drift_rest`, `example`) на каждом push и pull request в ветки `main`/`master`. Локально можно повторить те же проверки командами:
 
 ```bash
 dart pub get
 dart analyze .
-dart test packages/synchronize_cache
-dart test packages/synchronize_cache_rest
+dart test packages/offline_first_sync_drift
+dart test packages/offline_first_sync_drift_rest
 dart test
 ```

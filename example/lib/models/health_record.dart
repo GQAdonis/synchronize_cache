@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:synchronize_cache/synchronize_cache.dart';
+import 'package:offline_first_sync_drift/offline_first_sync_drift.dart';
 
 part 'health_record.g.dart';
 
