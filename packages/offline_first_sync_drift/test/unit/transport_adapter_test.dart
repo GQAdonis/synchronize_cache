@@ -47,8 +47,8 @@ void main() {
 
       final item = page.items.first;
       expect(item['id'], equals('1'));
-      expect(item['metadata'], isA<Map>());
-      expect(item['tags'], isA<List>());
+      expect(item['metadata'], isA<Map<String, dynamic>>());
+      expect(item['tags'], isA<List<dynamic>>());
       expect(item['count'], equals(42));
       expect(item['active'], isTrue);
       expect(item['nullable'], isNull);

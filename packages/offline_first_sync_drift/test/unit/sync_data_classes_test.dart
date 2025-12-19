@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 void main() {
   group('SyncOutboxData', () {
     test('creates with required parameters', () {
-      final data = SyncOutboxData(
+      const data = SyncOutboxData(
         opId: 'op-123',
         kind: 'users',
         entityId: 'user-456',
@@ -25,7 +25,7 @@ void main() {
     });
 
     test('creates with all parameters', () {
-      final data = SyncOutboxData(
+      const data = SyncOutboxData(
         opId: 'op-789',
         kind: 'posts',
         entityId: 'post-111',
@@ -64,7 +64,7 @@ void main() {
 
   group('SyncCursorData', () {
     test('creates with required parameters', () {
-      final data = SyncCursorData(
+      const data = SyncCursorData(
         kind: 'users',
         ts: 1704067200000,
         lastId: 'user-999',
@@ -88,13 +88,13 @@ void main() {
     });
 
     test('handles different kinds', () {
-      final usersCursor = SyncCursorData(
+      const usersCursor = SyncCursorData(
         kind: 'users',
         ts: 100,
         lastId: 'u1',
       );
 
-      final postsCursor = SyncCursorData(
+      const postsCursor = SyncCursorData(
         kind: 'posts',
         ts: 200,
         lastId: 'p1',

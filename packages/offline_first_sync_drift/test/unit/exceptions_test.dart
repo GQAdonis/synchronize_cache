@@ -427,15 +427,15 @@ void main() {
     });
 
     test('creates with message and cause', () {
-      final cause = FormatException('Unexpected character');
-      final exception = ParseException('Parse error', cause);
+      const cause = FormatException('Unexpected character');
+      const exception = ParseException('Parse error', cause);
 
       expect(exception.message, equals('Parse error'));
       expect(exception.cause, equals(cause));
     });
 
     test('fromError factory creates exception from error', () {
-      final error = FormatException('Invalid format');
+      const error = FormatException('Invalid format');
       final exception = ParseException.fromError(error);
 
       expect(exception.message, contains('Failed to parse data'));
@@ -443,7 +443,7 @@ void main() {
     });
 
     test('fromError factory with stack trace', () {
-      final error = FormatException('Bad data');
+      const error = FormatException('Bad data');
       final stackTrace = StackTrace.current;
       final exception = ParseException.fromError(error, stackTrace);
 

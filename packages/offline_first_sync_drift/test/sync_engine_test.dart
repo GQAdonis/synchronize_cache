@@ -2126,19 +2126,16 @@ class DeletedItemsTransport implements TransportAdapter {
     String? pageToken,
     String? afterId,
     bool includeDeleted = true,
-  }) async {
-    return PullPage(items: items);
-  }
+  }) async =>
+      PullPage(items: items);
 
   @override
-  Future<BatchPushResult> push(List<Op> ops) async {
-    return BatchPushResult(
-      results: ops.map((op) => OpPushResult(opId: op.opId, result: PushSuccess())).toList(),
-    );
-  }
+  Future<BatchPushResult> push(List<Op> ops) async => BatchPushResult(
+        results: ops.map((op) => OpPushResult(opId: op.opId, result: const PushSuccess())).toList(),
+      );
 
   @override
-  Future<PushResult> forcePush(Op op) async => PushSuccess();
+  Future<PushResult> forcePush(Op op) async => const PushSuccess();
 
   @override
   Future<FetchResult> fetch({required String kind, required String id}) async =>
@@ -2161,19 +2158,16 @@ class UuidItemsTransport implements TransportAdapter {
     String? pageToken,
     String? afterId,
     bool includeDeleted = true,
-  }) async {
-    return PullPage(items: items);
-  }
+  }) async =>
+      PullPage(items: items);
 
   @override
-  Future<BatchPushResult> push(List<Op> ops) async {
-    return BatchPushResult(
-      results: ops.map((op) => OpPushResult(opId: op.opId, result: PushSuccess())).toList(),
-    );
-  }
+  Future<BatchPushResult> push(List<Op> ops) async => BatchPushResult(
+        results: ops.map((op) => OpPushResult(opId: op.opId, result: const PushSuccess())).toList(),
+      );
 
   @override
-  Future<PushResult> forcePush(Op op) async => PushSuccess();
+  Future<PushResult> forcePush(Op op) async => const PushSuccess();
 
   @override
   Future<FetchResult> fetch({required String kind, required String id}) async =>
@@ -2365,19 +2359,17 @@ class RetryingConflictTransport implements TransportAdapter {
   });
 
   @override
-  Future<BatchPushResult> push(List<Op> ops) async {
-    return BatchPushResult(
-      results: ops
-          .map((op) => OpPushResult(
-                opId: op.opId,
-                result: PushConflict(
-                  serverData: serverData,
-                  serverTimestamp: serverTimestamp,
-                ),
-              ))
-          .toList(),
-    );
-  }
+  Future<BatchPushResult> push(List<Op> ops) async => BatchPushResult(
+        results: ops
+            .map((op) => OpPushResult(
+                  opId: op.opId,
+                  result: PushConflict(
+                    serverData: serverData,
+                    serverTimestamp: serverTimestamp,
+                  ),
+                ))
+            .toList(),
+      );
 
   @override
   Future<PullPage> pull({
@@ -2412,16 +2404,14 @@ class RetryingConflictTransport implements TransportAdapter {
 
 class NotFoundTransport implements TransportAdapter {
   @override
-  Future<BatchPushResult> push(List<Op> ops) async {
-    return BatchPushResult(
-      results: ops
-          .map((op) => OpPushResult(
-                opId: op.opId,
-                result: const PushNotFound(),
-              ))
-          .toList(),
-    );
-  }
+  Future<BatchPushResult> push(List<Op> ops) async => BatchPushResult(
+        results: ops
+            .map((op) => OpPushResult(
+                  opId: op.opId,
+                  result: const PushNotFound(),
+                ))
+            .toList(),
+      );
 
   @override
   Future<PullPage> pull({
@@ -2447,16 +2437,14 @@ class NotFoundTransport implements TransportAdapter {
 
 class ErrorResultTransport implements TransportAdapter {
   @override
-  Future<BatchPushResult> push(List<Op> ops) async {
-    return BatchPushResult(
-      results: ops
-          .map((op) => OpPushResult(
-                opId: op.opId,
-                result: PushError(Exception('Push error')),
-              ))
-          .toList(),
-    );
-  }
+  Future<BatchPushResult> push(List<Op> ops) async => BatchPushResult(
+        results: ops
+            .map((op) => OpPushResult(
+                  opId: op.opId,
+                  result: PushError(Exception('Push error')),
+                ))
+            .toList(),
+      );
 
   @override
   Future<PullPage> pull({
@@ -2490,19 +2478,17 @@ class ErrorPushTransport implements TransportAdapter {
   });
 
   @override
-  Future<BatchPushResult> push(List<Op> ops) async {
-    return BatchPushResult(
-      results: ops
-          .map((op) => OpPushResult(
-                opId: op.opId,
-                result: PushConflict(
-                  serverData: serverData,
-                  serverTimestamp: serverTimestamp,
-                ),
-              ))
-          .toList(),
-    );
-  }
+  Future<BatchPushResult> push(List<Op> ops) async => BatchPushResult(
+        results: ops
+            .map((op) => OpPushResult(
+                  opId: op.opId,
+                  result: PushConflict(
+                    serverData: serverData,
+                    serverTimestamp: serverTimestamp,
+                  ),
+                ))
+            .toList(),
+      );
 
   @override
   Future<PullPage> pull({
@@ -2516,9 +2502,8 @@ class ErrorPushTransport implements TransportAdapter {
       PullPage(items: []);
 
   @override
-  Future<PushResult> forcePush(Op op) async {
-    return PushError(Exception('Force push failed'));
-  }
+  Future<PushResult> forcePush(Op op) async =>
+      PushError(Exception('Force push failed'));
 
   @override
   Future<FetchResult> fetch({required String kind, required String id}) async =>

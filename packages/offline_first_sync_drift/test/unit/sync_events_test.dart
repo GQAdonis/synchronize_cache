@@ -92,7 +92,7 @@ void main() {
 
   group('SyncCompleted', () {
     test('creates with took and at', () {
-      final duration = const Duration(milliseconds: 1500);
+      const duration = Duration(milliseconds: 1500);
       final time = DateTime.utc(2024, 1, 15, 10, 30);
       final event = SyncCompleted(duration, time);
 
