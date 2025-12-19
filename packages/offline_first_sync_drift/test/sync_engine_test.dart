@@ -68,6 +68,7 @@ class MockTransport implements TransportAdapter {
   bool healthStatus = true;
   int pullCallCount = 0;
   int pushCallCount = 0;
+  String? lastAfterId;
 
   @override
   Future<PullPage> pull({
@@ -79,6 +80,7 @@ class MockTransport implements TransportAdapter {
     bool includeDeleted = true,
   }) async {
     pullCallCount++;
+    lastAfterId = afterId;
     return PullPage(items: pullResponses);
   }
 
@@ -1235,6 +1237,950 @@ void main() {
       expect(op.isNewRecord, isTrue);
     });
   });
+
+  group('ConflictStrategy tests', () {
+    test('serverWins accepts server data on conflict', () async {
+      final now = DateTime.now().toUtc();
+      final serverData = {
+        'id': 'item-1',
+        'name': 'Server Name',
+        'updated_at': now.toIso8601String(),
+      };
+      final transport = ConflictingTransport(
+        serverData: serverData,
+        serverTimestamp: now,
+      );
+
+      final events = <SyncEvent>[];
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+        config: const SyncConfig(conflictStrategy: ConflictStrategy.serverWins),
+      );
+
+      engine.events.listen(events.add);
+
+      await db.enqueue(UpsertOp(
+        opId: 'server-wins-op',
+        kind: 'test_item',
+        id: 'item-1',
+        localTimestamp: now,
+        payloadJson: {
+          'id': 'item-1',
+          'name': 'Local Name',
+          'updated_at': now.toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      expect(events.whereType<ConflictDetectedEvent>().length, 1);
+      expect(events.whereType<ConflictResolvedEvent>().length, 1);
+
+      final items = await db.select(db.testItems).get();
+      expect(items.length, 1);
+      expect(items.first.name, 'Server Name');
+
+      engine.dispose();
+    });
+
+    test('clientWins force pushes client data', () async {
+      final now = DateTime.now().toUtc();
+      final serverData = {
+        'id': 'item-2',
+        'name': 'Server Name',
+        'updated_at': now.toIso8601String(),
+      };
+      final transport = ConflictingTransport(
+        serverData: serverData,
+        serverTimestamp: now,
+      );
+
+      final events = <SyncEvent>[];
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+        config: const SyncConfig(conflictStrategy: ConflictStrategy.clientWins),
+      );
+
+      engine.events.listen(events.add);
+
+      await db.enqueue(UpsertOp(
+        opId: 'client-wins-op',
+        kind: 'test_item',
+        id: 'item-2',
+        localTimestamp: now,
+        payloadJson: {
+          'id': 'item-2',
+          'name': 'Local Name',
+          'updated_at': now.toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      expect(events.whereType<ConflictDetectedEvent>().length, 1);
+      expect(transport.forcePushCalled, isTrue);
+
+      engine.dispose();
+    });
+
+    test('lastWriteWins accepts client when local is newer', () async {
+      final oldServerTime = DateTime.now().subtract(const Duration(hours: 2)).toUtc();
+      final serverData = {
+        'id': 'item-3',
+        'name': 'Old Server Name',
+        'updated_at': oldServerTime.toIso8601String(),
+      };
+      final transport = ConflictingTransport(
+        serverData: serverData,
+        serverTimestamp: oldServerTime,
+      );
+
+      final events = <SyncEvent>[];
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+        config: const SyncConfig(conflictStrategy: ConflictStrategy.lastWriteWins),
+      );
+
+      engine.events.listen(events.add);
+
+      final newLocalTime = DateTime.now().toUtc();
+      await db.enqueue(UpsertOp(
+        opId: 'lww-client-op',
+        kind: 'test_item',
+        id: 'item-3',
+        localTimestamp: newLocalTime,
+        payloadJson: {
+          'id': 'item-3',
+          'name': 'New Local Name',
+          'updated_at': newLocalTime.toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      expect(events.whereType<ConflictDetectedEvent>().length, 1);
+      expect(transport.forcePushCalled, isTrue);
+
+      engine.dispose();
+    });
+
+    test('lastWriteWins accepts server when server is newer', () async {
+      final newServerTime = DateTime.now().add(const Duration(hours: 1)).toUtc();
+      final serverData = {
+        'id': 'item-4',
+        'name': 'New Server Name',
+        'updated_at': newServerTime.toIso8601String(),
+      };
+      final transport = ConflictingTransport(
+        serverData: serverData,
+        serverTimestamp: newServerTime,
+      );
+
+      final events = <SyncEvent>[];
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+        config: const SyncConfig(conflictStrategy: ConflictStrategy.lastWriteWins),
+      );
+
+      engine.events.listen(events.add);
+
+      final oldLocalTime = DateTime.now().subtract(const Duration(hours: 2)).toUtc();
+      await db.enqueue(UpsertOp(
+        opId: 'lww-server-op',
+        kind: 'test_item',
+        id: 'item-4',
+        localTimestamp: oldLocalTime,
+        payloadJson: {
+          'id': 'item-4',
+          'name': 'Old Local Name',
+          'updated_at': oldLocalTime.toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      expect(events.whereType<ConflictDetectedEvent>().length, 1);
+      expect(events.whereType<ConflictResolvedEvent>().length, 1);
+      expect(transport.forcePushCalled, isFalse);
+
+      final items = await db.select(db.testItems).get();
+      expect(items.length, 1);
+      expect(items.first.name, 'New Server Name');
+
+      engine.dispose();
+    });
+
+    test('merge strategy merges data', () async {
+      final now = DateTime.now().toUtc();
+      final serverData = {
+        'id': 'item-5',
+        'name': 'Server Name',
+        'updated_at': now.toIso8601String(),
+      };
+      final transport = ConflictingTransport(
+        serverData: serverData,
+        serverTimestamp: now,
+      );
+
+      final events = <SyncEvent>[];
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+        config: SyncConfig(
+          conflictStrategy: ConflictStrategy.merge,
+          mergeFunction: (local, server) => {...server, ...local},
+        ),
+      );
+
+      engine.events.listen(events.add);
+
+      await db.enqueue(UpsertOp(
+        opId: 'merge-op',
+        kind: 'test_item',
+        id: 'item-5',
+        localTimestamp: now,
+        payloadJson: {
+          'id': 'item-5',
+          'name': 'Local Name',
+          'updated_at': now.toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      expect(events.whereType<ConflictDetectedEvent>().length, 1);
+      expect(transport.forcePushCalled, isTrue);
+
+      engine.dispose();
+    });
+
+    test('manual strategy with resolver', () async {
+      final now = DateTime.now().toUtc();
+      final serverData = {
+        'id': 'item-6',
+        'name': 'Server Name',
+        'updated_at': now.toIso8601String(),
+      };
+      final transport = ConflictingTransport(
+        serverData: serverData,
+        serverTimestamp: now,
+      );
+
+      var resolverCalled = false;
+      final events = <SyncEvent>[];
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+        config: SyncConfig(
+          conflictStrategy: ConflictStrategy.manual,
+          conflictResolver: (conflict) async {
+            resolverCalled = true;
+            return const AcceptServer();
+          },
+        ),
+      );
+
+      engine.events.listen(events.add);
+
+      await db.enqueue(UpsertOp(
+        opId: 'manual-op',
+        kind: 'test_item',
+        id: 'item-6',
+        localTimestamp: now,
+        payloadJson: {
+          'id': 'item-6',
+          'name': 'Local Name',
+          'updated_at': now.toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      expect(resolverCalled, isTrue);
+      expect(events.whereType<ConflictResolvedEvent>().length, 1);
+
+      engine.dispose();
+    });
+
+    test('resolver can return DiscardOperation', () async {
+      final now = DateTime.now().toUtc();
+      final serverData = {
+        'id': 'item-8',
+        'name': 'Server Name',
+        'updated_at': now.toIso8601String(),
+      };
+      final transport = ConflictingTransport(
+        serverData: serverData,
+        serverTimestamp: now,
+      );
+
+      final events = <SyncEvent>[];
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+        config: SyncConfig(
+          conflictStrategy: ConflictStrategy.manual,
+          conflictResolver: (conflict) async => const DiscardOperation(),
+        ),
+      );
+
+      engine.events.listen(events.add);
+
+      await db.enqueue(UpsertOp(
+        opId: 'discard-op',
+        kind: 'test_item',
+        id: 'item-8',
+        localTimestamp: now,
+        payloadJson: {
+          'id': 'item-8',
+          'name': 'Local Name',
+          'updated_at': now.toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      expect(events.whereType<ConflictResolvedEvent>().length, 1);
+
+      engine.dispose();
+    });
+
+  });
+
+  group('DeleteOp tests', () {
+    test('enqueue DeleteOp preserves baseUpdatedAt', () async {
+      final baseTime = DateTime(2024, 1, 1, 12, 0, 0).toUtc();
+
+      await db.enqueue(DeleteOp(
+        opId: 'delete-base-test',
+        kind: 'test_item',
+        id: 'item-1',
+        localTimestamp: DateTime.now().toUtc(),
+        baseUpdatedAt: baseTime,
+      ));
+
+      final ops = await db.takeOutbox();
+      expect(ops.length, 1);
+
+      final op = ops.first as DeleteOp;
+      expect(op.baseUpdatedAt, baseTime);
+    });
+
+    test('DeleteOp syncs correctly', () async {
+      final transport = MockTransport();
+      final now = DateTime.now().toUtc();
+
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+      );
+
+      await db.enqueue(DeleteOp(
+        opId: 'delete-op-1',
+        kind: 'test_item',
+        id: 'item-to-delete',
+        localTimestamp: now,
+      ));
+
+      await engine.sync();
+
+      expect(transport.pushedOps.length, 1);
+      expect(transport.pushedOps.first, isA<DeleteOp>());
+      expect(transport.pushedOps.first.id, 'item-to-delete');
+
+      final outbox = await db.takeOutbox();
+      expect(outbox, isEmpty);
+
+      engine.dispose();
+    });
+  });
+
+  group('PushNotFound handling', () {
+    test('push ignores PushNotFound results', () async {
+      final transport = NotFoundTransport();
+
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+      );
+
+      await db.enqueue(UpsertOp(
+        opId: 'not-found-op',
+        kind: 'test_item',
+        id: 'item-1',
+        localTimestamp: DateTime.now().toUtc(),
+        payloadJson: {
+          'id': 'item-1',
+          'name': 'Test',
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      ));
+
+      await engine.sync();
+
+      final outbox = await db.takeOutbox();
+      expect(outbox, isEmpty);
+
+      engine.dispose();
+    });
+  });
+
+  group('Drift DAC queries', () {
+    test('filter outbox by kind using DAC', () async {
+      await db.enqueue(UpsertOp(
+        opId: 'dac-op-1',
+        kind: 'users',
+        id: 'user-1',
+        localTimestamp: DateTime.now().toUtc(),
+        payloadJson: {'id': 'user-1', 'name': 'User 1'},
+      ));
+
+      await db.enqueue(UpsertOp(
+        opId: 'dac-op-2',
+        kind: 'posts',
+        id: 'post-1',
+        localTimestamp: DateTime.now().toUtc(),
+        payloadJson: {'id': 'post-1', 'title': 'Post 1'},
+      ));
+
+      final allOps = await db.takeOutbox();
+      expect(allOps.length, 2);
+
+      await db.ackOutbox(['dac-op-1', 'dac-op-2']);
+    });
+
+    test('outbox ordering by timestamp', () async {
+      final time1 = DateTime.now().subtract(const Duration(hours: 2)).toUtc();
+      final time2 = DateTime.now().subtract(const Duration(hours: 1)).toUtc();
+      final time3 = DateTime.now().toUtc();
+
+      await db.enqueue(UpsertOp(
+        opId: 'order-op-3',
+        kind: 'test_item',
+        id: 'item-3',
+        localTimestamp: time3,
+        payloadJson: {'id': 'item-3', 'name': 'Third'},
+      ));
+
+      await db.enqueue(UpsertOp(
+        opId: 'order-op-1',
+        kind: 'test_item',
+        id: 'item-1',
+        localTimestamp: time1,
+        payloadJson: {'id': 'item-1', 'name': 'First'},
+      ));
+
+      await db.enqueue(UpsertOp(
+        opId: 'order-op-2',
+        kind: 'test_item',
+        id: 'item-2',
+        localTimestamp: time2,
+        payloadJson: {'id': 'item-2', 'name': 'Second'},
+      ));
+
+      final ops = await db.takeOutbox();
+      expect(ops.length, 3);
+      expect(ops[0].opId, 'order-op-1');
+      expect(ops[1].opId, 'order-op-2');
+      expect(ops[2].opId, 'order-op-3');
+
+      await db.ackOutbox(['order-op-1', 'order-op-2', 'order-op-3']);
+    });
+
+    test('cursor operations', () async {
+      final cursor1 = Cursor(ts: DateTime.now().toUtc(), lastId: 'item-1');
+      await db.setCursor('users', cursor1);
+
+      final cursor2 = Cursor(ts: DateTime.now().toUtc(), lastId: 'item-2');
+      await db.setCursor('posts', cursor2);
+
+      final userCursor = await db.getCursor('users');
+      expect(userCursor != null, isTrue);
+      expect(userCursor!.lastId, 'item-1');
+
+      final postCursor = await db.getCursor('posts');
+      expect(postCursor != null, isTrue);
+      expect(postCursor!.lastId, 'item-2');
+
+      await db.resetAllCursors({'users', 'posts'});
+
+      final resetUserCursor = await db.getCursor('users');
+      expect(resetUserCursor == null, isTrue);
+
+      final resetPostCursor = await db.getCursor('posts');
+      expect(resetPostCursor == null, isTrue);
+    });
+
+    test('cursor update replaces existing', () async {
+      final cursor1 = Cursor(ts: DateTime.now().toUtc(), lastId: 'old-id');
+      await db.setCursor('test_kind', cursor1);
+
+      final cursor2 = Cursor(ts: DateTime.now().toUtc(), lastId: 'new-id');
+      await db.setCursor('test_kind', cursor2);
+
+      final cursor = await db.getCursor('test_kind');
+      expect(cursor != null, isTrue);
+      expect(cursor!.lastId, 'new-id');
+
+      await db.resetAllCursors({'test_kind'});
+    });
+  });
+
+  group('CursorService methods', () {
+    test('reset sets cursor to epoch zero', () async {
+      final engine = SyncEngine(
+        db: db,
+        transport: MockTransport(),
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+      );
+
+      await db.setCursor('test_kind', Cursor(
+        ts: DateTime.now().toUtc(),
+        lastId: 'some-id',
+      ));
+
+      final cursorService = CursorService(db);
+      await cursorService.reset('test_kind');
+
+      final cursor = await db.getCursor('test_kind');
+      expect(cursor != null, isTrue);
+      expect(cursor!.ts.millisecondsSinceEpoch, 0);
+      expect(cursor.lastId, '');
+
+      engine.dispose();
+    });
+
+    test('getLastFullResync returns null when not set', () async {
+      final cursorService = CursorService(db);
+      final lastFullResync = await cursorService.getLastFullResync();
+      expect(lastFullResync == null, isTrue);
+    });
+
+    test('setLastFullResync and getLastFullResync work together', () async {
+      final cursorService = CursorService(db);
+      final timestamp = DateTime.now().toUtc();
+
+      await cursorService.setLastFullResync(timestamp);
+
+      final lastFullResync = await cursorService.getLastFullResync();
+      expect(lastFullResync != null, isTrue);
+      expect(
+        lastFullResync!.difference(timestamp).inSeconds.abs(),
+        lessThan(1),
+      );
+    });
+  });
+
+  group('OutboxService methods', () {
+    test('hasOperations returns false when empty', () async {
+      final outboxService = OutboxService(db);
+      final hasOps = await outboxService.hasOperations();
+      expect(hasOps, isFalse);
+    });
+
+    test('hasOperations returns true when not empty', () async {
+      final outboxService = OutboxService(db);
+
+      await outboxService.enqueue(UpsertOp(
+        opId: 'has-ops-test',
+        kind: 'test_item',
+        id: 'item-1',
+        localTimestamp: DateTime.now().toUtc(),
+        payloadJson: {'id': 'item-1', 'name': 'Test'},
+      ));
+
+      final hasOps = await outboxService.hasOperations();
+      expect(hasOps, isTrue);
+
+      await outboxService.ack(['has-ops-test']);
+    });
+
+    test('purgeOlderThan removes old operations', () async {
+      final outboxService = OutboxService(db);
+      final oldTime = DateTime.now().subtract(const Duration(days: 30)).toUtc();
+
+      await outboxService.enqueue(UpsertOp(
+        opId: 'old-purge-op',
+        kind: 'test_item',
+        id: 'item-old',
+        localTimestamp: oldTime,
+        payloadJson: {'id': 'item-old', 'name': 'Old'},
+      ));
+
+      final threshold = DateTime.now().subtract(const Duration(days: 7)).toUtc();
+      final deleted = await outboxService.purgeOlderThan(threshold);
+
+      expect(deleted, 1);
+    });
+  });
+
+  group('SyncDatabase methods', () {
+    test('purgeOutboxOlderThan removes old operations', () async {
+      final oldTime = DateTime.now().subtract(const Duration(days: 30)).toUtc();
+      final newTime = DateTime.now().toUtc();
+
+      await db.enqueue(UpsertOp(
+        opId: 'old-op',
+        kind: 'test_item',
+        id: 'item-1',
+        localTimestamp: oldTime,
+        payloadJson: {'id': 'item-1', 'name': 'Old'},
+      ));
+
+      await db.enqueue(UpsertOp(
+        opId: 'new-op',
+        kind: 'test_item',
+        id: 'item-2',
+        localTimestamp: newTime,
+        payloadJson: {'id': 'item-2', 'name': 'New'},
+      ));
+
+      final threshold = DateTime.now().subtract(const Duration(days: 7)).toUtc();
+      final deleted = await db.purgeOutboxOlderThan(threshold);
+
+      expect(deleted, 1);
+
+      final remaining = await db.takeOutbox();
+      expect(remaining.length, 1);
+      expect(remaining.first.opId, 'new-op');
+    });
+
+    test('ackOutbox with empty list does nothing', () async {
+      await db.enqueue(UpsertOp(
+        opId: 'op-1',
+        kind: 'test_item',
+        id: 'item-1',
+        localTimestamp: DateTime.now().toUtc(),
+        payloadJson: {'id': 'item-1', 'name': 'Test'},
+      ));
+
+      await db.ackOutbox([]);
+
+      final ops = await db.takeOutbox();
+      expect(ops.length, 1);
+    });
+
+    test('resetAllCursors with empty set does nothing', () async {
+      await db.setCursor('test_item', Cursor(
+        ts: DateTime.now().toUtc(),
+        lastId: 'item-1',
+      ));
+
+      await db.resetAllCursors({});
+
+      final cursor = await db.getCursor('test_item');
+      expect(cursor != null, isTrue);
+    });
+
+    test('clearSyncableTables clears specified tables', () async {
+      await db.into(db.testItems).insert(TestItemsCompanion.insert(
+        id: 'item-1',
+        name: 'Test Item',
+        updatedAt: DateTime.now().toUtc(),
+      ));
+
+      final itemsBefore = await db.select(db.testItems).get();
+      expect(itemsBefore.length, 1);
+
+      await db.clearSyncableTables(['test_items']);
+
+      final itemsAfter = await db.select(db.testItems).get();
+      expect(itemsAfter, isEmpty);
+    });
+  });
+
+  group('SyncEngine getters', () {
+    test('outbox returns OutboxService', () async {
+      final engine = SyncEngine(
+        db: db,
+        transport: MockTransport(),
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+      );
+
+      final outbox = engine.outbox;
+      expect(outbox, isA<OutboxService>());
+
+      engine.dispose();
+    });
+
+    test('cursors returns CursorService', () async {
+      final engine = SyncEngine(
+        db: db,
+        transport: MockTransport(),
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+      );
+
+      final cursors = engine.cursors;
+      expect(cursors, isA<CursorService>());
+
+      engine.dispose();
+    });
+  });
+
+  group('Pull with deleted items', () {
+    test('pull handles items with deletedAt', () async {
+      final deletedItemTime = DateTime.now().subtract(const Duration(days: 1)).toUtc();
+
+      final transport = DeletedItemsTransport(
+        items: [
+          {
+            'id': 'deleted-1',
+            'name': 'Deleted Item',
+            'updated_at': deletedItemTime.toIso8601String(),
+            'deleted_at': deletedItemTime.toIso8601String(),
+          },
+          {
+            'id': 'active-1',
+            'name': 'Active Item',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+        ],
+      );
+
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: TestItem.fromJson,
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+      );
+
+      final events = <SyncEvent>[];
+      engine.events.listen(events.add);
+
+      await engine.sync();
+
+      final cacheUpdateEvents =
+          events.whereType<CacheUpdateEvent>().toList();
+      expect(cacheUpdateEvents, isNotEmpty);
+      expect(cacheUpdateEvents.first.deletes, 1);
+      expect(cacheUpdateEvents.first.upserts, 1);
+
+      engine.dispose();
+    });
+  });
+
+  group('Pull with uuid field', () {
+    test('pull uses uuid when id and ID are not present', () async {
+      final transport = UuidItemsTransport(
+        items: [
+          {
+            'uuid': 'uuid-12345',
+            'name': 'UUID Item',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+        ],
+      );
+
+      final engine = SyncEngine(
+        db: db,
+        transport: transport,
+        tables: [
+          SyncableTable<TestItem>(
+            kind: 'test_item',
+            table: db.testItems,
+            fromJson: (json) => TestItem(
+              id: json['uuid'] as String? ?? json['id'] as String,
+              name: json['name'] as String,
+              updatedAt: DateTime.parse(json['updated_at'] as String),
+            ),
+            toJson: (item) => item.toJson(),
+            toInsertable: (item) => item.toInsertable(),
+          ),
+        ],
+      );
+
+      await engine.sync();
+
+      engine.dispose();
+    });
+  });
+
+}
+
+class DeletedItemsTransport implements TransportAdapter {
+  final List<Map<String, dynamic>> items;
+
+  DeletedItemsTransport({required this.items});
+
+  @override
+  Future<PullPage> pull({
+    required String kind,
+    required DateTime updatedSince,
+    required int pageSize,
+    String? pageToken,
+    String? afterId,
+    bool includeDeleted = true,
+  }) async {
+    return PullPage(items: items);
+  }
+
+  @override
+  Future<BatchPushResult> push(List<Op> ops) async {
+    return BatchPushResult(
+      results: ops.map((op) => OpPushResult(opId: op.opId, result: PushSuccess())).toList(),
+    );
+  }
+
+  @override
+  Future<PushResult> forcePush(Op op) async => PushSuccess();
+
+  @override
+  Future<FetchResult> fetch({required String kind, required String id}) async =>
+      const FetchNotFound();
+
+  @override
+  Future<bool> health() async => true;
+}
+
+class UuidItemsTransport implements TransportAdapter {
+  final List<Map<String, dynamic>> items;
+
+  UuidItemsTransport({required this.items});
+
+  @override
+  Future<PullPage> pull({
+    required String kind,
+    required DateTime updatedSince,
+    required int pageSize,
+    String? pageToken,
+    String? afterId,
+    bool includeDeleted = true,
+  }) async {
+    return PullPage(items: items);
+  }
+
+  @override
+  Future<BatchPushResult> push(List<Op> ops) async {
+    return BatchPushResult(
+      results: ops.map((op) => OpPushResult(opId: op.opId, result: PushSuccess())).toList(),
+    );
+  }
+
+  @override
+  Future<PushResult> forcePush(Op op) async => PushSuccess();
+
+  @override
+  Future<FetchResult> fetch({required String kind, required String id}) async =>
+      const FetchNotFound();
+
+  @override
+  Future<bool> health() async => true;
 }
 
 class _FailingTransport implements TransportAdapter {
@@ -1397,6 +2343,182 @@ class SlowTransport implements TransportAdapter {
 
   @override
   Future<PushResult> forcePush(Op op) async => const PushSuccess();
+
+  @override
+  Future<FetchResult> fetch({required String kind, required String id}) async =>
+      const FetchNotFound();
+
+  @override
+  Future<bool> health() async => true;
+}
+
+class RetryingConflictTransport implements TransportAdapter {
+  final Map<String, Object?> serverData;
+  final DateTime serverTimestamp;
+  int forcePushCallCount = 0;
+  final int conflictCount;
+
+  RetryingConflictTransport({
+    required this.serverData,
+    required this.serverTimestamp,
+    this.conflictCount = 1,
+  });
+
+  @override
+  Future<BatchPushResult> push(List<Op> ops) async {
+    return BatchPushResult(
+      results: ops
+          .map((op) => OpPushResult(
+                opId: op.opId,
+                result: PushConflict(
+                  serverData: serverData,
+                  serverTimestamp: serverTimestamp,
+                ),
+              ))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<PullPage> pull({
+    required String kind,
+    required DateTime updatedSince,
+    required int pageSize,
+    String? pageToken,
+    String? afterId,
+    bool includeDeleted = true,
+  }) async =>
+      PullPage(items: []);
+
+  @override
+  Future<PushResult> forcePush(Op op) async {
+    forcePushCallCount++;
+    if (forcePushCallCount <= conflictCount) {
+      return PushConflict(
+        serverData: serverData,
+        serverTimestamp: serverTimestamp,
+      );
+    }
+    return const PushSuccess();
+  }
+
+  @override
+  Future<FetchResult> fetch({required String kind, required String id}) async =>
+      const FetchNotFound();
+
+  @override
+  Future<bool> health() async => true;
+}
+
+class NotFoundTransport implements TransportAdapter {
+  @override
+  Future<BatchPushResult> push(List<Op> ops) async {
+    return BatchPushResult(
+      results: ops
+          .map((op) => OpPushResult(
+                opId: op.opId,
+                result: const PushNotFound(),
+              ))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<PullPage> pull({
+    required String kind,
+    required DateTime updatedSince,
+    required int pageSize,
+    String? pageToken,
+    String? afterId,
+    bool includeDeleted = true,
+  }) async =>
+      PullPage(items: []);
+
+  @override
+  Future<PushResult> forcePush(Op op) async => const PushSuccess();
+
+  @override
+  Future<FetchResult> fetch({required String kind, required String id}) async =>
+      const FetchNotFound();
+
+  @override
+  Future<bool> health() async => true;
+}
+
+class ErrorResultTransport implements TransportAdapter {
+  @override
+  Future<BatchPushResult> push(List<Op> ops) async {
+    return BatchPushResult(
+      results: ops
+          .map((op) => OpPushResult(
+                opId: op.opId,
+                result: PushError(Exception('Push error')),
+              ))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<PullPage> pull({
+    required String kind,
+    required DateTime updatedSince,
+    required int pageSize,
+    String? pageToken,
+    String? afterId,
+    bool includeDeleted = true,
+  }) async =>
+      PullPage(items: []);
+
+  @override
+  Future<PushResult> forcePush(Op op) async => const PushSuccess();
+
+  @override
+  Future<FetchResult> fetch({required String kind, required String id}) async =>
+      const FetchNotFound();
+
+  @override
+  Future<bool> health() async => true;
+}
+
+class ErrorPushTransport implements TransportAdapter {
+  final Map<String, Object?> serverData;
+  final DateTime serverTimestamp;
+
+  ErrorPushTransport({
+    required this.serverData,
+    required this.serverTimestamp,
+  });
+
+  @override
+  Future<BatchPushResult> push(List<Op> ops) async {
+    return BatchPushResult(
+      results: ops
+          .map((op) => OpPushResult(
+                opId: op.opId,
+                result: PushConflict(
+                  serverData: serverData,
+                  serverTimestamp: serverTimestamp,
+                ),
+              ))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<PullPage> pull({
+    required String kind,
+    required DateTime updatedSince,
+    required int pageSize,
+    String? pageToken,
+    String? afterId,
+    bool includeDeleted = true,
+  }) async =>
+      PullPage(items: []);
+
+  @override
+  Future<PushResult> forcePush(Op op) async {
+    return PushError(Exception('Force push failed'));
+  }
 
   @override
   Future<FetchResult> fetch({required String kind, required String id}) async =>

@@ -1,5 +1,8 @@
 # offline_first_sync_drift
 
+[![CI](https://github.com/cherrypick-agency/synchronize_cache/actions/workflows/ci.yml/badge.svg)](https://github.com/cherrypick-agency/synchronize_cache/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/cherrypick-agency/synchronize_cache/branch/main/graph/badge.svg?flag=offline_first_sync_drift)](https://codecov.io/gh/cherrypick-agency/synchronize_cache)
+
 Offline-first synchronization library for Dart/Flutter applications built on top of [Drift](https://pub.dev/packages/drift). Provides local caching with background sync to remote servers, conflict resolution, and full resync capabilities.
 
 ## Features

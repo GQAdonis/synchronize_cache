@@ -36,8 +36,20 @@ jobs:
       - name: Lint (dart analyze)
         run: dart analyze .
 
-      - name: Test offline_first_sync_drift
-        run: flutter test packages/offline_first_sync_drift
+      - name: Test offline_first_sync_drift with coverage
+        run: |
+          flutter test --coverage
+          # Filter out drift-generated files from coverage
+          grep -v '\.drift\.dart' coverage/lcov.info > coverage/lcov-filtered.info || true
+          mv coverage/lcov-filtered.info coverage/lcov.info
+        working-directory: packages/offline_first_sync_drift
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: packages/offline_first_sync_drift/coverage/lcov.info
+          flags: offline_first_sync_drift
+          fail_ci_if_error: false
 
       - name: Test offline_first_sync_drift_rest
         run: flutter test packages/offline_first_sync_drift_rest
