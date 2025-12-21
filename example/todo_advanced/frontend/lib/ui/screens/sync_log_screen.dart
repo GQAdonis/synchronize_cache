@@ -81,11 +81,11 @@ class SyncLogScreen extends StatelessWidget {
           ),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sync failed: $e'),
+          const SnackBar(
+            content: Text('Sync failed. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -106,7 +106,7 @@ class _EmptyState extends StatelessWidget {
           Icon(
             Icons.history,
             size: 80,
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
           ),
           const SizedBox(height: 16),
           Text(
@@ -149,7 +149,7 @@ class _LogEntryCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
+                color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color, size: 20),

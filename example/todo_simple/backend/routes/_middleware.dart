@@ -32,6 +32,7 @@ Middleware _corsMiddleware() {
   };
 }
 
+// TODO: Restrict 'Access-Control-Allow-Origin' to specific domains in production
 const _corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',

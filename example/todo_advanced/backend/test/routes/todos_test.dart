@@ -178,7 +178,7 @@ void main() {
           Uri.parse('http://localhost/todos/todo-1'),
           body: jsonEncode({
             'title': 'Updated',
-            '_base_updated_at': oldTimestamp.toIso8601String(),
+            '_baseUpdatedAt': oldTimestamp.toIso8601String(),
           }),
           headers: {},
         ),
@@ -209,7 +209,7 @@ void main() {
           Uri.parse('http://localhost/todos/todo-1'),
           body: jsonEncode({
             'title': 'Force Updated',
-            '_base_updated_at': oldTimestamp.toIso8601String(),
+            '_baseUpdatedAt': oldTimestamp.toIso8601String(),
           }),
           headers: {'x-force-update': 'true'},
         ),

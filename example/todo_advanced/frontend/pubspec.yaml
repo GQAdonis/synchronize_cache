@@ -24,10 +24,13 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   drift_dev: ^2.27.0
   build_runner: ^2.4.15
   json_serializable: ^6.9.4
   mocktail: ^1.0.4
+  http: ^1.2.0
 
 flutter:
   uses-material-design: true

@@ -23,6 +23,19 @@ class TodoRepository {
   final Map<String, Todo> _todos = {};
   final Set<String> _processedIdempotencyKeys = {};
 
+  /// Maximum number of idempotency keys to retain (prevents memory leak).
+  static const _maxIdempotencyKeys = 1000;
+
+  /// Adds an idempotency key and cleans up if over limit.
+  void _addIdempotencyKey(String key) {
+    _processedIdempotencyKeys.add(key);
+    if (_processedIdempotencyKeys.length > _maxIdempotencyKeys) {
+      // Simple cleanup: clear all when over limit (acceptable for demo)
+      _processedIdempotencyKeys.clear();
+      _processedIdempotencyKeys.add(key);
+    }
+  }
+
   /// Lists all non-deleted todos, with optional pagination.
   List<Todo> list({
     DateTime? updatedSince,
@@ -85,7 +98,7 @@ class TodoRepository {
     if (current == null) {
       _todos[id] = updated;
       if (idempotencyKey != null) {
-        _processedIdempotencyKeys.add(idempotencyKey);
+        _addIdempotencyKey(idempotencyKey);
       }
       return OperationSuccess(updated);
     }
@@ -98,7 +111,7 @@ class TodoRepository {
 
     _todos[id] = updated;
     if (idempotencyKey != null) {
-      _processedIdempotencyKeys.add(idempotencyKey);
+      _addIdempotencyKey(idempotencyKey);
     }
     return OperationSuccess(updated);
   }
@@ -136,7 +149,7 @@ class TodoRepository {
       deletedAt: now,
     );
     if (idempotencyKey != null) {
-      _processedIdempotencyKeys.add(idempotencyKey);
+      _addIdempotencyKey(idempotencyKey);
     }
     return OperationSuccess(_todos[id]);
   }

@@ -27,7 +27,7 @@ Response _handleList(RequestContext context, TodoRepository repo) {
   final updatedSince = params['updatedSince'] != null
       ? DateTime.tryParse(params['updatedSince']!)
       : null;
-  final limit = int.tryParse(params['limit'] ?? '') ?? 500;
+  final limit = (int.tryParse(params['limit'] ?? '') ?? 500).clamp(1, 1000);
   final pageToken = params['pageToken'];
   final includeDeleted = params['includeDeleted'] != 'false';
 
@@ -62,10 +62,10 @@ Future<Response> _handleCreate(
       statusCode: HttpStatus.created,
       body: todo.toJson(),
     );
-  } catch (e) {
+  } catch (_) {
     return Response.json(
       statusCode: HttpStatus.badRequest,
-      body: {'error': 'Invalid request body: $e'},
+      body: {'error': 'Invalid request body'},
     );
   }
 }

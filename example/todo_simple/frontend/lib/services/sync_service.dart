@@ -1,11 +1,35 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:offline_first_sync_drift/offline_first_sync_drift.dart';
 import 'package:offline_first_sync_drift_rest/offline_first_sync_drift_rest.dart';
 
 import '../database/database.dart';
 import '../models/todo.dart';
+
+/// Extracts user-friendly error message from exception.
+String _sanitizeError(Object error) {
+  final message = error.toString();
+  // Extract meaningful part, hide stack traces and internal details
+  if (message.contains('SocketException')) {
+    return 'Network connection failed. Check your internet connection.';
+  }
+  if (message.contains('TimeoutException')) {
+    return 'Request timed out. Server may be slow or unavailable.';
+  }
+  if (message.contains('HandshakeException')) {
+    return 'Secure connection failed. Check server certificate.';
+  }
+  if (message.contains('FormatException')) {
+    return 'Server returned invalid data.';
+  }
+  // Generic fallback - avoid exposing internal details
+  if (message.length > 100) {
+    return 'Sync failed. Please try again.';
+  }
+  return message;
+}
 
 /// Service for synchronizing todos with the server.
 ///
@@ -14,11 +38,16 @@ class SyncService extends ChangeNotifier {
   SyncService({
     required AppDatabase db,
     required String baseUrl,
+    http.Client? httpClient,
+    int maxRetries = 5,
+    int maxPushRetries = 5,
   }) : _db = db {
     _transport = RestTransport(
       base: Uri.parse(baseUrl),
       // No auth for demo
       token: () async => '',
+      client: httpClient,
+      maxRetries: maxRetries,
     );
 
     _engine = SyncEngine(
@@ -33,10 +62,11 @@ class SyncService extends ChangeNotifier {
           toInsertable: (t) => t.toInsertable(),
         ),
       ],
-      config: const SyncConfig(
+      config: SyncConfig(
         // Use autoPreserve for simple flow - merges without conflicts
         conflictStrategy: ConflictStrategy.autoPreserve,
         pageSize: 500,
+        maxPushRetries: maxPushRetries,
       ),
     );
 
@@ -85,7 +115,7 @@ class SyncService extends ChangeNotifier {
       notifyListeners();
       return stats;
     } catch (e) {
-      _error = e.toString();
+      _error = _sanitizeError(e);
       _status = SyncStatus.error;
       notifyListeners();
       rethrow;
@@ -137,7 +167,7 @@ class SyncService extends ChangeNotifier {
         notifyListeners();
 
       case SyncErrorEvent(:final error):
-        _error = error.toString();
+        _error = _sanitizeError(error);
         _status = SyncStatus.error;
         notifyListeners();
 

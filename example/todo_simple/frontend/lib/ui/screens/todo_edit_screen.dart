@@ -79,11 +79,16 @@ class _TodoEditScreenState extends State<TodoEditScreen> {
                 labelText: 'Title',
                 hintText: 'Enter todo title',
                 border: OutlineInputBorder(),
+                counterText: '',
               ),
+              maxLength: 500,
               textCapitalization: TextCapitalization.sentences,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Title is required';
+                }
+                if (value.length > 500) {
+                  return 'Title must be 500 characters or less';
                 }
                 return null;
               },
@@ -98,7 +103,9 @@ class _TodoEditScreenState extends State<TodoEditScreen> {
                 labelText: 'Description (optional)',
                 hintText: 'Enter description',
                 border: OutlineInputBorder(),
+                counterText: '',
               ),
+              maxLength: 2000,
               maxLines: 3,
               textCapitalization: TextCapitalization.sentences,
             ),
@@ -167,11 +174,11 @@ class _TodoEditScreenState extends State<TodoEditScreen> {
       if (mounted) {
         Navigator.pop(context);
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
+          const SnackBar(
+            content: Text('Failed to save. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -274,15 +281,19 @@ class _DueDatePicker extends StatelessWidget {
 
   Future<void> _pickDate(BuildContext context) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: value ?? now,
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now.add(const Duration(days: 365 * 5)),
-    );
+    try {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: value ?? now,
+        firstDate: now.subtract(const Duration(days: 365)),
+        lastDate: now.add(const Duration(days: 365 * 5)),
+      );
 
-    if (picked != null) {
-      onChanged(picked);
+      if (picked != null && context.mounted) {
+        onChanged(picked);
+      }
+    } catch (_) {
+      // Date picker can fail on some platforms - silently ignore
     }
   }
 }

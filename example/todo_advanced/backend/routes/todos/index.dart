@@ -24,7 +24,7 @@ Response _get(RequestContext context) {
     updatedSince = DateTime.tryParse(params['updatedSince']!);
   }
 
-  final limit = int.tryParse(params['limit'] ?? '') ?? 500;
+  final limit = (int.tryParse(params['limit'] ?? '') ?? 500).clamp(1, 1000);
   final pageToken = params['pageToken'];
 
   final todos = repository.list(
@@ -61,19 +61,36 @@ Future<Response> _post(RequestContext context) async {
     final body = await context.request.body();
     final json = jsonDecode(body) as Map<String, dynamic>;
 
+    // Validate required fields
+    final title = json['title'];
+    if (title == null || title is! String || title.isEmpty || title.length > 500) {
+      return Response(
+        statusCode: 400,
+        body: jsonEncode({'error': 'title is required and must be 1-500 characters'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
     final id = json['id'] as String? ?? _uuid.v4();
     final now = DateTime.now().toUtc();
 
+    // Validate priority range (1-5)
+    final priority = (json['priority'] as int? ?? 3).clamp(1, 5);
+
+    // Parse due_date safely (type-check before cast)
+    DateTime? dueDate;
+    final dueDateValue = json['due_date'];
+    if (dueDateValue is String) {
+      dueDate = DateTime.tryParse(dueDateValue);
+    }
+
     final todo = Todo(
       id: id,
-      title: json['title'] as String,
+      title: title,
       description: json['description'] as String?,
       completed: json['completed'] as bool? ?? false,
-      priority: json['priority'] as int? ?? 3,
-      dueDate:
-          json['due_date'] != null
-              ? DateTime.parse(json['due_date'] as String)
-              : null,
+      priority: priority,
+      dueDate: dueDate,
       updatedAt: now,
     );
 
@@ -87,7 +104,7 @@ Future<Response> _post(RequestContext context) async {
   } catch (e) {
     return Response(
       statusCode: 400,
-      body: jsonEncode({'error': 'Invalid request body', 'details': '$e'}),
+      body: jsonEncode({'error': 'Invalid request body'}),
       headers: {'Content-Type': 'application/json'},
     );
   }

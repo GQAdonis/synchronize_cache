@@ -17,7 +17,7 @@ class DiffViewer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -25,7 +25,7 @@ class DiffViewer extends StatelessWidget {
           // Header
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: Colors.grey.withOpacity(0.1),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
             ),
             child: Row(
@@ -35,7 +35,7 @@ class DiffViewer extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       border: Border(
-                        right: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                        right: BorderSide(color: Colors.grey.withOpacity(0.3)),
                       ),
                     ),
                     child: Row(
@@ -114,7 +114,8 @@ class DiffViewer extends StatelessWidget {
 
   String _formatDate(DateTime? date) {
     if (date == null) return '(none)';
-    return '${date.month}/${date.day}/${date.year}';
+    final local = date.toLocal();
+    return '${local.day}/${local.month}/${local.year}';
   }
 }
 
@@ -137,11 +138,11 @@ class _DiffRow extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDifferent ? Colors.orange.withValues(alpha: 0.05) : null,
+        color: isDifferent ? Colors.orange.withOpacity(0.05) : null,
         border: isLast
             ? null
             : Border(
-                bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                bottom: BorderSide(color: Colors.grey.withOpacity(0.3)),
               ),
         borderRadius: isLast
             ? const BorderRadius.vertical(bottom: Radius.circular(7))
@@ -168,7 +169,7 @@ class _DiffRow extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.2),
+                      color: Colors.orange.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
@@ -194,7 +195,7 @@ class _DiffRow extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     border: Border(
-                      right: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                      right: BorderSide(color: Colors.grey.withOpacity(0.3)),
                     ),
                   ),
                   child: Text(

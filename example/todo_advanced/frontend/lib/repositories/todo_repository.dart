@@ -57,12 +57,15 @@ class TodoRepository {
     final now = DateTime.now().toUtc();
     final id = _uuid.v4();
 
+    // Validate priority range (1-5)
+    final validPriority = priority.clamp(1, 5);
+
     final todo = Todo(
       id: id,
       title: title,
       description: description,
       completed: completed,
-      priority: priority,
+      priority: validPriority,
       dueDate: dueDate,
       updatedAt: now,
     );
@@ -102,16 +105,18 @@ class TodoRepository {
     if (completed != null && completed != todo.completed) {
       changedFields.add('completed');
     }
-    if (priority != null && priority != todo.priority) {
+    // Validate priority range (1-5)
+    final validPriority = priority?.clamp(1, 5);
+    if (validPriority != null && validPriority != todo.priority) {
       changedFields.add('priority');
     }
-    if (dueDate != todo.dueDate) changedFields.add('due_date');
+    if (dueDate != todo.dueDate) changedFields.add('dueDate');
 
     final updated = todo.copyWith(
       title: title ?? todo.title,
       description: description,
       completed: completed ?? todo.completed,
-      priority: priority ?? todo.priority,
+      priority: validPriority ?? todo.priority,
       dueDate: dueDate,
       updatedAt: now,
     );

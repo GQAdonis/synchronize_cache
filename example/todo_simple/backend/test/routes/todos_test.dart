@@ -258,7 +258,7 @@ void main() {
       expect(response.statusCode, equals(HttpStatus.notFound));
     });
 
-    test('deletes existing todo', () async {
+    test('soft deletes existing todo', () async {
       final now = DateTime.now().toUtc();
       repo.seed([Todo(id: 'test-1', title: 'To Delete', updatedAt: now)]);
 
@@ -268,8 +268,13 @@ void main() {
 
       final response = await todos_id.onRequest(context, 'test-1');
 
+      // Soft delete returns 204 No Content
       expect(response.statusCode, equals(HttpStatus.noContent));
-      expect(repo.getById('test-1'), isNull);
+
+      // Todo still exists with deletedAt set
+      final deleted = repo.getById('test-1');
+      expect(deleted, isNotNull);
+      expect(deleted!.deletedAt, isNotNull);
     });
   });
 

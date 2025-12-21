@@ -11,8 +11,16 @@ import '../widgets/todo_card.dart';
 import 'todo_edit_screen.dart';
 
 /// Main screen showing list of todos.
-class TodoListScreen extends StatelessWidget {
+class TodoListScreen extends StatefulWidget {
   const TodoListScreen({super.key});
+
+  @override
+  State<TodoListScreen> createState() => _TodoListScreenState();
+}
+
+class _TodoListScreenState extends State<TodoListScreen> {
+  /// Tracks if conflict dialog is currently shown to prevent duplicates.
+  bool _isShowingConflictDialog = false;
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +49,19 @@ class TodoListScreen extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                       const SizedBox(height: 16),
-                      Text('Error: ${snapshot.error}'),
+                      const Text('Failed to load todos'),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: () => setState(() {}),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
                     ],
                   ),
                 );
@@ -61,6 +79,7 @@ class TodoListScreen extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final todo = todos[index];
                   return TodoCard(
+                    key: ValueKey(todo.id),
                     todo: todo,
                     onToggle: () => _toggleTodo(context, repo, todo),
                     onTap: () => _editTodo(context, todo),
@@ -74,9 +93,11 @@ class TodoListScreen extends StatelessWidget {
           // Conflict listener
           Consumer<ConflictHandler>(
             builder: (context, handler, _) {
-              if (handler.currentConflict != null) {
+              final conflict = handler.currentConflict;
+              if (conflict != null && !_isShowingConflictDialog) {
+                _isShowingConflictDialog = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _showConflictDialog(context, handler.currentConflict!);
+                  _showConflictDialog(context, conflict);
                 });
               }
               return const SizedBox.shrink();
@@ -157,7 +178,7 @@ class TodoListScreen extends StatelessWidget {
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && context.mounted) {
       await repo.delete(todo);
 
       if (context.mounted) {
@@ -168,12 +189,13 @@ class TodoListScreen extends StatelessWidget {
     }
   }
 
-  void _showConflictDialog(BuildContext context, ConflictInfo conflict) {
-    showDialog<void>(
+  Future<void> _showConflictDialog(BuildContext context, ConflictInfo conflict) async {
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => ConflictDialog(conflict: conflict),
     );
+    _isShowingConflictDialog = false;
   }
 
   void _showSimulationMenu(BuildContext context) {
@@ -202,7 +224,7 @@ class _EmptyState extends StatelessWidget {
           Icon(
             Icons.checklist,
             size: 80,
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
           ),
           const SizedBox(height: 16),
           Text(
@@ -309,10 +331,13 @@ class _SimulationMenu extends StatelessWidget {
           SnackBar(content: Text('Reminder added to "${todo.title}". Sync to see conflict.')),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Failed to add reminder. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -329,10 +354,13 @@ class _SimulationMenu extends StatelessWidget {
           const SnackBar(content: Text('Auto-complete triggered. Sync to see changes.')),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Failed to auto-complete. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -370,10 +398,13 @@ class _SimulationMenu extends StatelessWidget {
           SnackBar(content: Text('Priority changed for "${todo.title}". Sync to see conflict.')),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Failed to change priority. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

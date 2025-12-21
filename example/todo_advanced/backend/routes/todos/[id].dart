@@ -43,21 +43,40 @@ Future<Response> _put(RequestContext context, String id) async {
     final json = jsonDecode(body) as Map<String, dynamic>;
     final now = DateTime.now().toUtc();
 
+    // Validate required fields
+    final title = json['title'];
+    if (title == null || title is! String || title.isEmpty || title.length > 500) {
+      return Response(
+        statusCode: 400,
+        body: jsonEncode({'error': 'title is required and must be 1-500 characters'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
     DateTime? baseUpdatedAt;
-    if (json['_base_updated_at'] != null) {
-      baseUpdatedAt = DateTime.parse(json['_base_updated_at'] as String);
+    // RestTransport sends _baseUpdatedAt (camelCase) - type-check before cast
+    final baseUpdatedAtValue = json['_baseUpdatedAt'];
+    if (baseUpdatedAtValue is String) {
+      baseUpdatedAt = DateTime.tryParse(baseUpdatedAtValue);
+    }
+
+    // Validate priority range (1-5)
+    final priority = (json['priority'] as int? ?? 3).clamp(1, 5);
+
+    // Parse due_date safely (type-check before cast)
+    DateTime? dueDate;
+    final dueDateValue = json['due_date'];
+    if (dueDateValue is String) {
+      dueDate = DateTime.tryParse(dueDateValue);
     }
 
     final todo = Todo(
       id: id,
-      title: json['title'] as String,
+      title: title,
       description: json['description'] as String?,
       completed: json['completed'] as bool? ?? false,
-      priority: json['priority'] as int? ?? 3,
-      dueDate:
-          json['due_date'] != null
-              ? DateTime.parse(json['due_date'] as String)
-              : null,
+      priority: priority,
+      dueDate: dueDate,
       updatedAt: now,
     );
 
@@ -91,7 +110,7 @@ Future<Response> _put(RequestContext context, String id) async {
   } catch (e) {
     return Response(
       statusCode: 400,
-      body: jsonEncode({'error': 'Invalid request body', 'details': '$e'}),
+      body: jsonEncode({'error': 'Invalid request body'}),
       headers: {'Content-Type': 'application/json'},
     );
   }

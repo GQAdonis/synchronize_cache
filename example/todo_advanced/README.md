@@ -152,7 +152,7 @@ flutter run -d chrome
 
 | Method | Endpoint | Body | Description |
 |--------|----------|------|-------------|
-| POST | `/simulate/reminder` | `{"id": "...", "reminder": "..."}` | Append reminder to description |
+| POST | `/simulate/reminder` | `{"id": "...", "text": "..."}` | Append reminder to description |
 | POST | `/simulate/complete` | `{"id": "..."}` | Mark todo as completed |
 | POST | `/simulate/prioritize` | `{"id": "...", "priority": 1}` | Change priority |
 
@@ -197,7 +197,7 @@ flutter run -d chrome
    ```bash
    curl -X POST http://localhost:8080/simulate/reminder \
      -H "Content-Type: application/json" \
-     -d '{"id":"<todo-id>","reminder":"Don'\''t forget!"}'
+     -d '{"id":"<todo-id>","text":"Don'\''t forget!"}'
    ```
 
 3. Sync the app

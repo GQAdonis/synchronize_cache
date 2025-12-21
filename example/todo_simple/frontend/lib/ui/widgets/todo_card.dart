@@ -49,7 +49,7 @@ class TodoCard extends StatelessWidget {
                         decoration:
                             todo.completed ? TextDecoration.lineThrough : null,
                         color: todo.completed
-                            ? colorScheme.onSurface.withValues(alpha: 0.5)
+                            ? colorScheme.onSurface.withOpacity(0.6)
                             : null,
                       ),
                     ),
@@ -128,11 +128,13 @@ class _DueDateChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Convert dueDate to local timezone for display and comparison
+    final localDueDate = dueDate.toLocal();
     final now = DateTime.now();
-    final isOverdue = dueDate.isBefore(now);
-    final isToday = dueDate.day == now.day &&
-        dueDate.month == now.month &&
-        dueDate.year == now.year;
+    final isOverdue = localDueDate.isBefore(now);
+    final isToday = localDueDate.day == now.day &&
+        localDueDate.month == now.month &&
+        localDueDate.year == now.year;
 
     final color = isOverdue
         ? Colors.red
@@ -142,14 +144,14 @@ class _DueDateChip extends StatelessWidget {
 
     final label = isToday
         ? 'Today'
-        : '${dueDate.month}/${dueDate.day}/${dueDate.year}';
+        : '${localDueDate.month}/${localDueDate.day}/${localDueDate.year}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

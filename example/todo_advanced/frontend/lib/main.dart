@@ -11,7 +11,13 @@ import 'ui/screens/todo_list_screen.dart';
 ///
 /// Change this to your actual backend URL.
 /// Default: localhost:8080 for dart_frog dev server.
-const kBackendUrl = 'http://localhost:8080';
+///
+/// For production, configure via --dart-define:
+/// flutter run --dart-define=BACKEND_URL=https://api.example.com
+const kBackendUrl = String.fromEnvironment(
+  'BACKEND_URL',
+  defaultValue: 'http://localhost:8080',
+);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

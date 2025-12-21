@@ -35,9 +35,13 @@ class TodoListScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
+                  const Text('Failed to load todos. Please restart the app.'),
                 ],
               ),
             );
@@ -55,6 +59,7 @@ class TodoListScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final todo = todos[index];
               return TodoCard(
+                key: ValueKey(todo.id),
                 todo: todo,
                 onToggle: () => _toggleTodo(context, repo, todo),
                 onTap: () => _editTodo(context, todo),
@@ -122,7 +127,7 @@ class TodoListScreen extends StatelessWidget {
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && context.mounted) {
       await repo.delete(todo);
 
       if (context.mounted) {
@@ -146,7 +151,7 @@ class _EmptyState extends StatelessWidget {
           Icon(
             Icons.checklist,
             size: 80,
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
           ),
           const SizedBox(height: 16),
           Text(

@@ -16,8 +16,10 @@ Handler middleware(Handler handler) {
 Middleware _corsMiddleware() {
   return (handler) {
     return (context) async {
+      // Handle preflight requests
       if (context.request.method == HttpMethod.options) {
         return Response(
+          statusCode: 204,
           headers: _corsHeaders,
         );
       }
@@ -33,6 +35,7 @@ Middleware _corsMiddleware() {
   };
 }
 
+// TODO: Restrict 'Access-Control-Allow-Origin' to specific domains in production
 const _corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -44,9 +47,10 @@ const _corsHeaders = {
 Middleware _requestLogger() {
   return (handler) {
     return (context) async {
-      final method = context.request.method.value;
-      final path = context.request.uri.path;
-      print('[$method] $path');
+      // Note: In production, use structured logging instead of print
+      // print() is disabled to avoid exposing request paths in production logs
+      // Enable for local development only:
+      // print('[${context.request.method.value}] ${context.request.uri.path}');
       return handler(context);
     };
   };

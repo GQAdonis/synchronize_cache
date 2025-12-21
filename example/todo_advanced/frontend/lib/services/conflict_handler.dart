@@ -43,6 +43,9 @@ class ConflictHandler extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Maximum log entries to keep in memory.
+  static const _maxLogEntries = 100;
+
   /// Logs a sync event.
   void logEvent(String message, {SyncLogLevel level = SyncLogLevel.info}) {
     _log.add(SyncLogEntry(
@@ -50,6 +53,10 @@ class ConflictHandler extends ChangeNotifier {
       message: message,
       level: level,
     ));
+    // Prevent unbounded memory growth
+    while (_log.length > _maxLogEntries) {
+      _log.removeAt(0);
+    }
     notifyListeners();
   }
 
@@ -57,10 +64,25 @@ class ConflictHandler extends ChangeNotifier {
   ///
   /// This is called by the sync engine when a conflict is detected.
   Future<ConflictResolution> resolve(Conflict conflict) async {
+    // Parse conflict data safely - malformed data should not crash sync
+    final Todo localTodo;
+    final Todo serverTodo;
+    try {
+      localTodo = Todo.fromJson(conflict.localData.cast<String, dynamic>());
+      serverTodo = Todo.fromJson(conflict.serverData.cast<String, dynamic>());
+    } catch (e) {
+      logEvent(
+        'Failed to parse conflict data: $e',
+        level: SyncLogLevel.error,
+      );
+      // Defer resolution on parse error - will retry on next sync
+      return const DeferResolution();
+    }
+
     final info = ConflictInfo(
       conflict: conflict,
-      localTodo: Todo.fromJson(conflict.localData.cast<String, dynamic>()),
-      serverTodo: Todo.fromJson(conflict.serverData.cast<String, dynamic>()),
+      localTodo: localTodo,
+      serverTodo: serverTodo,
     );
 
     logEvent(
@@ -92,10 +114,25 @@ class ConflictHandler extends ChangeNotifier {
     return _resolutionCompleter!.future;
   }
 
+  /// Timeout for user to resolve a conflict before auto-deferring.
+  static const _resolutionTimeout = Duration(minutes: 5);
+
   Future<ConflictResolution> _waitForResolution(ConflictInfo info) async {
+    final startTime = DateTime.now();
+
     // Wait until this conflict becomes current and gets resolved
     while (_pendingConflicts.contains(info) || _currentConflict == info) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      // Check for timeout to prevent infinite waiting
+      if (DateTime.now().difference(startTime) > _resolutionTimeout) {
+        logEvent(
+          'Conflict resolution timed out for "${info.localTodo.title}"',
+          level: SyncLogLevel.warning,
+        );
+        // Auto-defer on timeout - will retry on next sync
+        return const DeferResolution();
+      }
     }
 
     // Resolution was applied
@@ -166,6 +203,17 @@ class ConflictHandler extends ChangeNotifier {
   /// Skips the current conflict (uses server version).
   void skipConflict() {
     resolveWithServer();
+  }
+
+  @override
+  void dispose() {
+    // Complete any pending resolution to prevent hanging futures
+    if (_resolutionCompleter != null && !_resolutionCompleter!.isCompleted) {
+      _resolutionCompleter!.complete(const DeferResolution());
+    }
+    _pendingConflicts.clear();
+    _currentConflict = null;
+    super.dispose();
   }
 }
 

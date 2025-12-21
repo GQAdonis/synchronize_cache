@@ -5,6 +5,13 @@ import '../../models/todo.dart';
 import '../../services/conflict_handler.dart';
 import 'diff_viewer.dart';
 
+/// Formats a date for user display.
+String _formatDate(DateTime? date) {
+  if (date == null) return '(none)';
+  final local = date.toLocal();
+  return '${local.day}/${local.month}/${local.year}';
+}
+
 /// Dialog for resolving sync conflicts.
 ///
 /// Shows local and server versions side by side,
@@ -24,6 +31,7 @@ class ConflictDialog extends StatefulWidget {
 class _ConflictDialogState extends State<ConflictDialog> {
   late Todo _mergedTodo;
   bool _showMergeEditor = false;
+  bool _isResolving = false;
 
   @override
   void initState() {
@@ -37,11 +45,11 @@ class _ConflictDialogState extends State<ConflictDialog> {
     final theme = Theme.of(context);
 
     return AlertDialog(
-      title: Row(
+      title: const Row(
         children: [
           Icon(Icons.warning_amber, color: Colors.orange),
-          const SizedBox(width: 8),
-          const Text('Sync Conflict'),
+          SizedBox(width: 8),
+          Text('Sync Conflict'),
         ],
       ),
       content: SizedBox(
@@ -81,7 +89,7 @@ class _ConflictDialogState extends State<ConflictDialog> {
       actions: [
         // Server button
         OutlinedButton.icon(
-          onPressed: () => _resolveWithServer(context),
+          onPressed: _isResolving ? null : () => _resolveWithServer(context),
           icon: const Icon(Icons.cloud_download),
           label: const Text('Use Server'),
         ),
@@ -89,20 +97,21 @@ class _ConflictDialogState extends State<ConflictDialog> {
         // Merge button
         if (!_showMergeEditor)
           OutlinedButton.icon(
-            onPressed: () => setState(() => _showMergeEditor = true),
+            onPressed:
+                _isResolving ? null : () => setState(() => _showMergeEditor = true),
             icon: const Icon(Icons.merge),
             label: const Text('Merge'),
           )
         else
           FilledButton.icon(
-            onPressed: () => _resolveWithMerge(context),
+            onPressed: _isResolving ? null : () => _resolveWithMerge(context),
             icon: const Icon(Icons.check),
             label: const Text('Apply Merge'),
           ),
 
         // Local button
         FilledButton.icon(
-          onPressed: () => _resolveWithLocal(context),
+          onPressed: _isResolving ? null : () => _resolveWithLocal(context),
           icon: const Icon(Icons.phone_android),
           label: const Text('Use Local'),
         ),
@@ -111,18 +120,27 @@ class _ConflictDialogState extends State<ConflictDialog> {
   }
 
   void _resolveWithLocal(BuildContext context) {
+    if (_isResolving) return;
+    setState(() => _isResolving = true);
+
     final handler = context.read<ConflictHandler>();
     handler.resolveWithLocal();
     Navigator.pop(context);
   }
 
   void _resolveWithServer(BuildContext context) {
+    if (_isResolving) return;
+    setState(() => _isResolving = true);
+
     final handler = context.read<ConflictHandler>();
     handler.resolveWithServer();
     Navigator.pop(context);
   }
 
   void _resolveWithMerge(BuildContext context) {
+    if (_isResolving) return;
+    setState(() => _isResolving = true);
+
     final handler = context.read<ConflictHandler>();
     handler.resolveWithMerged(_mergedTodo);
     Navigator.pop(context);
@@ -206,9 +224,9 @@ class _MergeEditor extends StatelessWidget {
         if (localTodo.dueDate != serverTodo.dueDate)
           _FieldMerger(
             fieldName: 'Due Date',
-            localValue: localTodo.dueDate?.toIso8601String() ?? '(none)',
-            serverValue: serverTodo.dueDate?.toIso8601String() ?? '(none)',
-            currentValue: mergedTodo.dueDate?.toIso8601String() ?? '(none)',
+            localValue: _formatDate(localTodo.dueDate),
+            serverValue: _formatDate(serverTodo.dueDate),
+            currentValue: _formatDate(mergedTodo.dueDate),
             onLocalSelected: () => onChanged(mergedTodo.copyWith(dueDate: localTodo.dueDate)),
             onServerSelected: () => onChanged(mergedTodo.copyWith(dueDate: serverTodo.dueDate)),
           ),
@@ -303,10 +321,10 @@ class _SelectableValue extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+          color: isSelected ? color.withOpacity(0.1) : Colors.grey.withOpacity(0.05),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
+            color: isSelected ? color : Colors.grey.withOpacity(0.3),
             width: isSelected ? 2 : 1,
           ),
         ),

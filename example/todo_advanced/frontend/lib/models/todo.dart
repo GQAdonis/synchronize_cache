@@ -88,7 +88,10 @@ class Todo {
           description == other.description &&
           completed == other.completed &&
           priority == other.priority &&
-          dueDate == other.dueDate;
+          dueDate == other.dueDate &&
+          updatedAt == other.updatedAt &&
+          deletedAt == other.deletedAt &&
+          deletedAtLocal == other.deletedAtLocal;
 
   @override
   int get hashCode => Object.hash(
@@ -98,5 +101,8 @@ class Todo {
         completed,
         priority,
         dueDate,
+        updatedAt,
+        deletedAt,
+        deletedAtLocal,
       );
 }

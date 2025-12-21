@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 import '../models/todo.dart';
 
 /// Result of a paginated list query.
@@ -20,6 +22,9 @@ class TodoRepository {
 
   /// In-memory storage: id -> Todo.
   final Map<String, Todo> _storage = {};
+
+  /// UUID generator for server-side ID creation.
+  static const _uuid = Uuid();
 
   DateTime _now() {
     final now = DateTime.now().toUtc();
@@ -93,15 +98,17 @@ class TodoRepository {
     // Remove system fields from payload
     final cleanData = _stripSystemFields(data);
 
+    // Validate priority range (1-5)
+    final priority = (cleanData['priority'] as int? ?? 3).clamp(1, 5);
+
     final todo = Todo(
       id: id,
       title: cleanData['title'] as String? ?? '',
       description: cleanData['description'] as String?,
       completed: cleanData['completed'] as bool? ?? false,
-      priority: cleanData['priority'] as int? ?? 3,
+      priority: priority,
       dueDate: _parseDateTime(cleanData['due_date']),
       updatedAt: now,
-      createdAt: now,
     );
 
     _storage[id] = todo;
@@ -118,6 +125,10 @@ class TodoRepository {
     // Remove system fields from payload
     final cleanData = _stripSystemFields(data);
 
+    // Validate priority range (1-5)
+    final rawPriority = cleanData['priority'] as int?;
+    final priority = rawPriority?.clamp(1, 5);
+
     if (existing == null) {
       // Upsert: create new todo
       final todo = Todo(
@@ -125,10 +136,9 @@ class TodoRepository {
         title: cleanData['title'] as String? ?? '',
         description: cleanData['description'] as String?,
         completed: cleanData['completed'] as bool? ?? false,
-        priority: cleanData['priority'] as int? ?? 3,
+        priority: priority ?? 3,
         dueDate: _parseDateTime(cleanData['due_date']),
         updatedAt: now,
-        createdAt: now,
       );
       _storage[id] = todo;
       return todo;
@@ -141,7 +151,7 @@ class TodoRepository {
           ? cleanData['description'] as String?
           : existing.description,
       completed: cleanData['completed'] as bool? ?? existing.completed,
-      priority: cleanData['priority'] as int? ?? existing.priority,
+      priority: priority ?? existing.priority,
       dueDate: cleanData.containsKey('due_date')
           ? _parseDateTime(cleanData['due_date'])
           : existing.dueDate,
@@ -152,11 +162,20 @@ class TodoRepository {
     return updated;
   }
 
-  /// Deletes a todo by ID.
+  /// Soft deletes a todo by ID.
   ///
-  /// Returns true if deleted, false if not found.
-  bool delete(String id) {
-    return _storage.remove(id) != null;
+  /// Returns the updated todo if deleted, null if not found.
+  Todo? delete(String id) {
+    final existing = _storage[id];
+    if (existing == null) return null;
+
+    final now = _now();
+    final deleted = existing.copyWith(
+      deletedAt: now,
+      updatedAt: now,
+    );
+    _storage[id] = deleted;
+    return deleted;
   }
 
   /// Clears all todos (for testing).
@@ -169,7 +188,7 @@ class TodoRepository {
     }
   }
 
-  String _generateId() => DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+  String _generateId() => _uuid.v4();
 
   DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;

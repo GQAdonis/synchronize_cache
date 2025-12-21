@@ -10,6 +10,29 @@ import '../database/database.dart';
 import '../models/todo.dart';
 import 'conflict_handler.dart';
 
+/// Extracts user-friendly error message from exception.
+String _sanitizeError(Object error) {
+  final message = error.toString();
+  // Extract meaningful part, hide stack traces and internal details
+  if (message.contains('SocketException')) {
+    return 'Network connection failed. Check your internet connection.';
+  }
+  if (message.contains('TimeoutException')) {
+    return 'Request timed out. Server may be slow or unavailable.';
+  }
+  if (message.contains('HandshakeException')) {
+    return 'Secure connection failed. Check server certificate.';
+  }
+  if (message.contains('FormatException')) {
+    return 'Server returned invalid data.';
+  }
+  // Generic fallback - avoid exposing internal details
+  if (message.length > 100) {
+    return 'Sync failed. Please try again.';
+  }
+  return message;
+}
+
 /// Service for synchronizing todos with the server.
 ///
 /// Uses [SyncEngine] with [RestTransport] for HTTP communication.
@@ -19,12 +42,15 @@ class SyncService extends ChangeNotifier {
     required AppDatabase db,
     required String baseUrl,
     required ConflictHandler conflictHandler,
+    int maxRetries = 5,
+    int maxPushRetries = 5,
   })  : _db = db,
         _conflictHandler = conflictHandler {
     _transport = RestTransport(
       base: Uri.parse(baseUrl),
       // No auth for demo
       token: () async => '',
+      maxRetries: maxRetries,
     );
 
     _engine = SyncEngine(
@@ -43,6 +69,7 @@ class SyncService extends ChangeNotifier {
         // Use manual strategy for conflict resolution UI
         conflictStrategy: ConflictStrategy.manual,
         pageSize: 500,
+        maxPushRetries: maxPushRetries,
         // Connect conflict resolver function
         conflictResolver: conflictHandler.resolve,
       ),
@@ -104,11 +131,11 @@ class SyncService extends ChangeNotifier {
       notifyListeners();
       return stats;
     } catch (e) {
-      _error = e.toString();
+      _error = _sanitizeError(e);
       _status = SyncStatus.error;
 
       _conflictHandler.logEvent(
-        'Sync failed: $e',
+        'Sync failed: $_error',
         level: SyncLogLevel.error,
       );
 
@@ -155,7 +182,7 @@ class SyncService extends ChangeNotifier {
       );
 
       if (response.statusCode >= 400) {
-        throw Exception('Server returned ${response.statusCode}: ${response.body}');
+        throw Exception('Server returned ${response.statusCode}');
       }
 
       _conflictHandler.logEvent(
@@ -192,7 +219,7 @@ class SyncService extends ChangeNotifier {
         notifyListeners();
 
       case SyncErrorEvent(:final error):
-        _error = error.toString();
+        _error = _sanitizeError(error);
         _status = SyncStatus.error;
         notifyListeners();
 

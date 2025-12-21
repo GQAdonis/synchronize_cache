@@ -54,10 +54,10 @@ Future<Response> onRequest(RequestContext context) async {
       }),
       headers: {'Content-Type': 'application/json'},
     );
-  } catch (e) {
+  } catch (_) {
     return Response(
       statusCode: 400,
-      body: jsonEncode({'error': 'Invalid request body', 'details': '$e'}),
+      body: jsonEncode({'error': 'Invalid request body'}),
       headers: {'Content-Type': 'application/json'},
     );
   }

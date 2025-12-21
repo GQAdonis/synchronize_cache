@@ -49,26 +49,27 @@ Future<Response> _handlePut(
       statusCode: statusCode,
       body: todo.toJson(),
     );
-  } catch (e) {
+  } catch (_) {
     return Response.json(
       statusCode: HttpStatus.badRequest,
-      body: {'error': 'Invalid request body: $e'},
+      body: {'error': 'Invalid request body'},
     );
   }
 }
 
-/// DELETE /todos/:id - Delete a todo.
+/// DELETE /todos/:id - Soft delete a todo.
 ///
 /// In simplified flow, `_baseUpdatedAt` query param is ignored.
+/// Returns the soft-deleted todo with deletedAt timestamp.
 Response _handleDelete(TodoRepository repo, String id) {
   final deleted = repo.delete(id);
 
-  if (!deleted) {
+  if (deleted == null) {
     return Response.json(
       statusCode: HttpStatus.notFound,
       body: {'error': 'not_found'},
     );
   }
 
-  return Response(statusCode: HttpStatus.noContent);
+  return Response(statusCode: 204);
 }

@@ -77,4 +77,32 @@ class Todo {
 
   @override
   String toString() => 'Todo(id: $id, title: $title, completed: $completed)';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Todo &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          description == other.description &&
+          completed == other.completed &&
+          priority == other.priority &&
+          dueDate == other.dueDate &&
+          updatedAt == other.updatedAt &&
+          deletedAt == other.deletedAt &&
+          deletedAtLocal == other.deletedAtLocal;
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        title,
+        description,
+        completed,
+        priority,
+        dueDate,
+        updatedAt,
+        deletedAt,
+        deletedAtLocal,
+      );
 }
